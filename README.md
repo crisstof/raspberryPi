@@ -1,7 +1,7 @@
 # raspberryPi
 
 [comment]: <> (logo)        
-[![raspberryPI_logo](rasplogo2.jpg)](https://www.raspberrypi.com/)
+[![raspberryPI_logo](rasplogo4.jpg)](https://www.raspberrypi.com/)
 
 
    
