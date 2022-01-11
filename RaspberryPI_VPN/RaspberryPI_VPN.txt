@@ -1,0 +1,250 @@
+*****************************************************************
+*		client VPN sur raspberryPi avec OpenVPN		*
+*****************************************************************
+#Installer openvpn:
+apt-get install openvpn
+#Copier les scripts "easy-rsa" présents dans le répertoire ("/usr/share/easy-rsa") 
+#dans le dossier d'installation d'Open VPN
+cp -r /usr/share/easy-rsa  /etc/openvpn/easy-rsa #copier easy-rsa dans openvpn
+-----------------------------------------------------------------------------------------
+|#Editer le fichier vars (examples_vars) #si vous voulez changer pays, region ...	|
+|#Editer le fichier présent dans le répertoire ("/etc/openvpn/easy-rsa/vars")		|
+|[											|
+|  Export KEY_DIR=$D/keys								|
+|  Export KEY_COUNTRY=FR								|
+|  Export KEY_PROVINCE=FR								|
+|  Export KEY_CITY=Lyon									|
+|  Export KEY_ORG=example								|
+|  Export KEY_EMAIL=example@toto.org							|
+|]											|
+|#Exécute le script vars								|
+|. ./vars										|
+-----------------------------------------------------------------------------------------
+*******************************************************************************************************
+Création:
+./easyrsa init-pki  #créer l'pki  [PKI public key infrastructure]
+#génère le certificat de l'autorité de certification [CA] et la clé d'autorité de certification:
+./easyrsa build-ca  nopass #crée certificat d'autorité (name rien) [ca.crt]********pass:christ
+
+./easyrsa build-server-full server nopass #certificat server [server.crt, server.key]         
+./easyrsa build-client-full client1 nopass #certificat client [client1.crt, client1.key]
+./easyrsa gen-dh #génère les paramètres de diffi hellmann  [dh.pem]
+openvpn --genkey --secret ta.key #génère la clé ta.key pour tls
+
+#copier les fichiers openvpn/server [ca.crt, server.crt, server.key, dh.pem, ta.key]
+ 
+#activer le routage  echo 1 > /proc/sys/net/ipv4/ip_forward
+cd /etc/sysctl.conf #net.ipv4.ip_forward=1 #uncomment
+sysctl -p /etc/sysctl.conf #recharge la configuration
+cat /proc/sys/net/ipv4/ip_forward #renvoi 1 l'ip forwarding est activé
+
+**Fichier de configuration du server openvpn**
+cp /usr/share/doc/openvpn/examples/sample-config-files/server.conf.gz /etc/openvpn/server
+gunzip server.conf.gz
+nano server.conf #dans server
+ -----------------------------------------------------------------------
+| port 1194								|
+| proto udp								|
+| dev tun								|
+| server 172.16.0.0 255.255.255.0 #réseau virtuel quand on se connecte	|
+| push "route 192.168.1.0 255.255.255.0" #adresse réseau local		|
+| comp-lzo #compression							|
+| user nobody  #securite le user ne peut avoir acces au serveur		|
+| group nogroup#							|
+| #uncomment les logs pour la journalisation				|
+ -----------------------------------------------------------------------
+Activer le server openvpn
+systemctl start openvpn-server@server
+systemctl enable openvpn-server@server #au démarrage
+netstat -plnu #port ecoute 1194
+
+#ajuster le parfeu de votre reseau
+firewall -cmd --add port=1194/udp --permanent
+firewall -cm --reload
+
+*******côté client******
+cp /usr/share/doc/openvpn/examples/sample-config-files/client.conf /etc/openvpn/client
+#il faut côté client:
+ca ca.crt
+cert client1.crt
+key client1.key
+client.conf    #renommer en client.ovpn pour openvpn
+
+Mise en place de la config dans openvpn connect OK ça marche!! (ouvrir port box pour la redirection)
+si une ip dynamique côté serveur passer pas Noip.
+
+
+openvpnConnect:
+Client
+on a besoin de ca.crt, client.crt, client.key, client.conf
+#pour signaler que c'est un client !
+client
+#type d'interface
+dev tun
+#protocole de communication
+proto udp
+#adresse ip publique du réseau dans lequel le serveur est installé + port identique au serveur
+remote 88.206.37.220 1589
+#tentative de connexion infinie
+resolv-retry infinite
+nobind
+#pour rendre la connexion persistante
+persist-key
+persist-tun
+#pour cacher les avertissements
+mute-replay-warnings
+#emplacement du master CA
+ca /etc/openvpn/easy-rsa/keys/ca.crt
+#emplacement du certificat client
+cert /etc/openvpn/easy-rsa/keys/nom_du_client1.crt
+#emplacement de la clé privée du client
+key /etc/openvpn/easy-rsa/keys/nom_du_client1.key
+#type d'encryptage des données
+cipher AES-128-CBC
+#activation de la compression
+comp-lzo
+#niveau de verbosité
+verb 5
+
+//##!!!!!!!Attention il faut renommer le fichier client.conf en client.ovpn sur windows
+si tout est dans config
+#pour signaler que c'est un client !
+client
+#type d'interface
+dev tun
+#protocole de communication
+proto udp
+#adresse ip publique du réseau dans lequel le serveur est installé + port
+#identique au serveur
+remote 82.236.27.215 1595
+#tentative de connexion infinie
+resolv-retry infinite
+nobind
+#pour rendre la connexion persistante
+persist-key
+persist-tun
+#pour cacher les avertissements
+mute-replay-warnings
+#emplacement du master CA
+ca ca.crt
+#emplacement du certificat client
+cert nom_du_client1.crt
+#emplacement de la clé privée du client
+key nom_du_client1.key
+#type d'encryptage des données
+cipher AES-128-CBC
+#activation de la compression
+comp-lzo
+#niveau de verbosité
+verb 5
+
+
+ [SERVER SAMBA] créer un passerelle pour copier/coller les clés.
+----------------------------------------------------------------
+transfert des dossiers:
+apt install samba
+nano /etc/samba/smb.conf
+[share]
+comment = Shared folder
+path = /home/pi/partaging
+browseable = yes
+writeable = yes
+valid users = nobody
+admin users = nobody
+read only = no
+only guest = no
+create mask = 0777
+directory mask = 0777
+public = yes
+guest ok = yes
+
+
+sudo service smbd restart
+sudo service nmbd restart
+
+windows barre recherche \\pi\share
+------------------------------------------------------------------------------
+
+
+
+
+**********************************DISCUSSIONS*************************************************************************
+****************
+client VPN sur raspberryPi et OpenVPN
+	**************************************
+CA autorité de certification
+AE autorité d'enregistrement (enplus)
+PKI public key infrastructure
+CSR demande de signature de certificat
+
+
+Créer une infrastructure à clé publique (ICP) sur le serveur OpenVPN afin que vous puissiez demander et 
+gérer les certificats TLS pour les clients et les autres serveurs qui se connecteront à votre VPN.
+Avant de pouvoir créer la clé privée et le certificat de votre serveur OpenVPN, vous devez créer un 
+répertoire local de l'infrastructure à clé publique sur votre serveur OpenVPN. 
+Vous utiliserez ce répertoire pour gérer les demandes de certificats du serveur et des clients au lieu 
+de les faire directement sur votre serveur AC.
+
+Config Easy-RSA 3 VARS
+Pour créer un répertoire ICP sur votre serveur OpenVPN, vous devez remplir un fichier appelé vars avec 
+quelques valeurs par défaut.vous allez dans le répertoire easy-rsa, puis vous allez créer et modifier 
+le fichier vars créer le répertoire vars:
+set_var EASYRSA_ALGO "ec"
+set_var EASYRSA_DIGEST "sha512"
+ou laisser d'origine voir l'example
+Notez que sur votre serveur OpenVPN, il n'est pas nécessaire de créer une autorité de certification. 
+Votre serveur d'AC est seul responsable de la validation et de la signature des certificats. 
+L'ICP de votre serveur VPN n'est utilisée que comme un emplacement pratique et centralisé de stockage 
+des demandes de certificats et des certificats  publics.
+Une fois que vous avez initialisé votre ICP sur le serveur OpenVPN, vous êtes prêt à passer à
+l'étape suivante, qui consiste à créer une demande de certificat de serveur OpenVPN et une clé privée.
+Créer des clés OpenVPN
+Créer une demande de certificat de serveur OpenVPN et d'une clé privée
+Générer une clé privée et une demande de signature de certificat (CSR) sur votre serveur OpenVPN.
+Ensuite vous transferez la demande à un autre serveur pour signer le certificat 
+si on le fait sur la même machine openvpn cela ouvre à des vulnérabilités. Après la signature on 
+le retransfère à nouveau sur serveur OpenVPN et l'installer pour que le serveur puisse l'utiliser.
+
+---------------------------------------------------------------------------------------------------------
+Objectif: connexion sur raspi avec une adresse dynamique.
+sudo apt-get install openvpn openssl
+Openvpn: serveur vpn.						
+Easy-RSA: outil de gestion de l'infrastructure à clé publique (ICP) utilisé sur le OpenVPN					*
+pour générer ue demande de certificat.				
+OpenSSL: complète le protocole TLS (transport layer security) et SSL (secure sockets layer) et 				
+bibliothèque de cryptographie à usage général.			
+---------------------------------------------------------------------------------------------------------
+Copier les scripts "easy-rsa" présents dans le répertoire ("/usr/share/easy-rsa") 
+dans le dossier d'installation d'OpenVPN
+sudo cp -r /usr/share/easy-rsa  /etc/openvpn/easy-rsa
+Editer le fichier présent dans le répertoire ("/etc/openvpn/easy-rsa/vars")
+---------------------------------------------------------------------------------------------------------
+
+nom server et nopass (sinon le fichier de demande sera protégé ce qui peut entraîner des problèmes 
+d'autorisation par la suite et server sinon les adapter comme server.conf pour pointer vers .crt et
+ /key dans le répertoire easyrsa: ./easyrsa gen-req server nopass
+
+
+Signer la demande de certificat du serveur OpenVPN
+nous avons une demande de signature de certificat (CSR) et une clé privé (server)
+Maintenant l'autorité de certification (AC) (une autre machine mais ici c'est le serveur vpn)
+il doit connaitre le serveur et le valider.
+une fois que le (AC) a validé et relayé le certificat vers le serveur OpenVPN, les clients qui font 
+confiance à votre AC pourront également faire confiance au serveur OpenVPN.
+transférer le certificat server.req vers le serveur AC pour la signature
+envoi un fichier en ssh
+scp reqs/server.reg  hot@ipserver:/tmp
+ou en interne
+cp  ./pki/reqs/server.req ./tmp/server.req
+importer la demande en utilisant le script dans easy-rsa
+./easyrsa import-req  /tmp/server.req server
+
+JE FINIS ICI POUR LE MOMENT
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+
+
+
+
+

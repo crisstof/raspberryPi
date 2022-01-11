@@ -1,0 +1,323 @@
+
+	*************************************************************************
+	*  		HOTSPOT-WIFI  + Serveur DHCP				*
+	*************************************************************************
+
+Créer un hotpost (hostapd)  avec un dhcp (dnsmasq)
+Installation des services:
+apt install hostapd                      /*Hotspot*/
+	systemctl status hostapd.service
+apt install dnsmasq			/*dhcp*/
+
+Pour la configuration, nous arrêtons les services:
+sudo systemctl stop dnsmasq  # et hostapd
+********************************************************************************
+Pour que le système fonctionne, il faut allouer une adresse IP fixe
+qui ne change pas et qui ne sera pas prise par un autre appareil.
+L'adresse de la passerelle de notre réseau.
+ajouter à la fin du fichier /etc/dhcpcd.conf #adresse pour notre hotspot
+  interface wlan0
+  static ip_address=192.168.2.1/24  
+
+service dhpcd restart  #redémarre le service
+*******
+HOSTAPD      Configuration
+********************************************************************************
+Faire un point wifi: /etc/hostapd/hostapd.conf
+# l'interface associée
+interface=wlan0
+# utilise le driver nl80211
+driver=nl80211
+# le nom du SSID**********************************************
+ssid=hotspotA
+# utilise 2.4GHz band ou 5Ghz ac
+hw_mode=g
+# Use channel 6
+channel=6
+# Enable 802.11n pour g=IEEE 802.11n(2,4Ghz) ac=IEEE 802.11ac(5Ghz) ad = $
+ieee80211n=1
+# Enable WMM Qos Support si à 1
+wmm_enabled=1
+# Enable 40MHz channels with 20ns guard interval
+ht_capab=[HT40][SHORT-GI-20][DSSS_CCK-40]
+# Accept all MAC addresses
+macaddr_acl=0
+# Use WPA authentication
+auth_algs=1
+# demander au client de connaitre le nom du réseau
+ignore_broadcast_ssid=0
+# utilise WPA2
+wpa=2
+# Use a pre-shared key
+wpa_key_mgmt=WPA-PSK
+# mot de passe accés au wifi**********************************
+wpa_passphrase=12345678
+# Use AES, instead of TKIP
+rsn_pairwise=CCMP
+
+#!!Attention 
+#Nous informons hostapd qu'il doit se servir du fichier de configuration 
+#qu'on a créee au dessus
+#il faut décommenter dans /etc/default/hostapd
+DEAMON_CONF: "/etc/hostapd/hostapd.conf
+
+#exécuter le hostapd avec la commande:  
+sudo /usr/sbin/hostapd  /etc/hostapd/hostapd.conf
+
+Tester le fonctionnement du point d'accès s'il diffuse:
+#lance les log pour voir la connexion: tail -f /var/log/syslog
+#exécuter le deamon:  service hostapd start  ou sysctl start hostapd
+
+
+*******
+DNSMASQ       Configuration
+********************************************************************************
+#le serveur dhcp pour notre hotspot
+sauvegarder le fichier d’origine:  /etc/dnsmasq.conf.old
+dans /etc/dnsmasq.conf
+# Interface à utiliser
+interface=wlan0
+# Plage DHCP : on attribuera les adresses IP entre 192.168.2.10 et 192.168.2.30 pour une durée de #24h
+#dhcp-range=192.168.2.2,192.168.2.20,255.255.255.0,24h
+dhcp-range=192.168.2.2,192.168.2.20,255.255.255.0
+***************************************************************************************************************
+******************************** AUTRE CONFIG AVEC LA RESOLUTION DE NOM ***************************************
+#ne transmet pas de requete sans nom de domaine complet en amont
+domain-needed
+#dans etc/hosts ou dans DHCP se voient
+#retournées no such domain au lien de transmettre le nom amont
+bogus-priv
+#ne pas forwarder les requete pour notre intranet subdomain
+local=/local/
+#ajoute le nom de domaine aux noms simples (pas de point dans le nom) contenu d$
+#même façon que pour le service DHCP
+expand-hosts
+#notre domaine
+domain=local
+#ne pas utilise le fichier hosts
+#no-hosts
+#addn-hosts=/etc/hosts.dnsmasq
+# Interface à utiliser
+interface=wlan0
+listen-address=192.168.2.1
+# Plage DHCP : on attribuera les adresses IP entre 192.168.2.10 et 192.168.2.30$
+dhcp-range=192.168.2.10,192.168.2.30,255.255.255.0,24h
+
+
+#Static IPS
+dhcp-host=b8:27:eb:25:fc:c0,broker,192.168.2.17
+et configure le fichier hosts
+127.0.0.1       localhost
+::1             localhost ip6-localhost ip6-loopback
+ff02::1         ip6-allnodes
+ff02::2         ip6-allrouters
+
+127.0.1.1       raspberrypi
+192.168.2.1     raspberrypi
+192.168.2.17    broker
+192.168.2.15    SDT-PORTHP5
+***************************************************************************************************************
+***************************************************************************************************************
+service dnsmasq restart
+Nous avons resolv.conf pour les dns primaire et secondaire
+
+!!!Les service ne sont pas en fonctionnement à chaque démarrage!!!
+#Mise en automatique de 2 façons:
+/etc/init.d/fichier  puis le rendre executable et enfin sudo update-rc ficnom defaults
+Ou
+/etc/rec.local avant exit0 donner le chemin et nom du fichier executable
+#C’est en fonction de la distribution sinon peut être une difference dans init.d démarre 
+en tant que service et rc.local en simple script mais pas sur.
+***************************************************************************************************************
+
+service  hostapd start
+service  dnsmasq start
+systemctl status hostapd ...
+#Service au démarrage:
+/etc/rec.local avant exit0 donner le chemin et nom du fichier executable
+
+***************************************************************************************************************
+Résumer des adresses IP
+CELA REVIENT A DECLARER DANS DHCPCD WLAN0 + STATIC ADDRESS=...
+Mais pour attribuer cette plage il faut
+/etc/dhcpcd.conf à la fin du fichier ajouter la ligne: denyinterface wlan0
+puis dans /etc/network/interfaces.d/ on crée un fichier interfaceRasp1 on ajoute les liens
+allow-hotplug wlan0  
+iface wlan0 inet static  
+    address 192.168.2.1
+    netmask 255.255.255.0
+    network 192.168.2.0
+    broadcast 192.168.2.255
+#    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+
+SINON autre façon rapide 
+ajouter à la fin du fichier /etc/dhcpcd.conf
+interface wlan0
+  static ip_address=192.168.2.1/24 
+#démarrer le service: systemctl start dnsmasq
+***************************************************************************************************************
+***************************************************************************************************************
+					AJOUT DU ROUTAGE			         		      *
+***************************************************************************************************************
+Avoir accès a internet avec le hotspot:
+--------------------------------------
+il faut router les interfaces avant tout, on décommente la ligne dans le fichier:
+/etc/sysctl.conf   : net.ipv4.ip  forward=1
+----------------------------------------------------------------------
+raccourcie autre méthode pour l'ajout du masquage et de la table d'IP-
+----------------------------------------------------------------------
+sudo iptables -t nat -A  POSTROUTING -o eth0 -j MASQUERADE #route vers ethernet déjà nous avons internet direct
+#génère la table d'adresse IP 
+#il faut la sauvegarder pour la recharger à chaque démarrage
+sudo sh -c "iptables-save > /etc/iptables.ipv4.nat"
+#Editer le fichier  /etc/rc.local
+ajouter juste avant le exit 0
+iptables-restore < /etc/iptables.ipv4.nat 
+#et rebooter
+
+afficher les règles iptables
+iptables -L -v -n
+iptables -L --line-numbers
+*********************************************************************************
+                         FAIRE DU IPTABLE					*
+*********************************************************************************
+créer fichier iptable.shcd 
+#!/bin/sh
+#On flush
+iptables -F
+
+#Politic
+iptables -P OUTPUT  DROP
+iptables -P INPUT   DROP
+iptables -P FORWARD DROP
+
+#Connexions Etablies garde les connexions établies
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+#autorise le loopback
+iptables -A INPUT  -i lo -j ACCEPT
+iptables -A OUTPUT -o lo -j ACCEPT
+
+#Internet
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT 
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
+
+#FIREBASE NOTIFICATION
+iptables -A INPUT -p tcp --dport 5229 -j ACCEPT 
+iptables -A INPUT -p udp --dport 5229 -j ACCEPT
+
+#iptables -A OUTPUT -p tcp --dport 5229 -j ACCEPT 
+#iptables -A OUTPUT -p udp --dport 5229 -j ACCEPT
+
+iptables -A INPUT -p tcp --dport 5228 -j ACCEPT 
+iptables -A INPUT -p udp --dport 5228 -j ACCEPT
+
+#iptables -A OUTPUT -p tcp --dport 5228 -j ACCEPT 
+#iptables -A OUTPUT -p udp --dport 5228 -j ACCEPT
+
+iptables -A INPUT -p tcp --dport 5230 -j ACCEPT 
+iptables -A INPUT -p udp --dport 5230 -j ACCEPT
+
+#iptables -A OUTPUT -p tcp --dport 5230 -j ACCEPT 
+#iptables -A OUTPUT -p udp --dport 5230 -j ACCEPT
+
+#VNC
+iptables -A INPUT  -p tcp --dport 5900 -j ACCEPT #vnc
+iptables -A OUTPUT -p tcp --sport 5900 -j ACCEPT #vnc
+iptables -A INPUT  -p tcp --dport 22   -j ACCEPT #ssh
+iptables -A OUTPUT -p tcp --dport 22   -j ACCEPT #ssh
+
+iptables -A INPUT -p tcp --dport 53 -j ACCEPT #dnsmasq
+iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+iptables -A INPUT -p UDP --dport 53 -j ACCEPT
+iptables -A OUTPUT -p UDP --dport 53 -j ACCEPT
+iptables -A INPUT -p UDP --dport 67 -j ACCEPT  #dnsmasq
+iptables -A OUTPUT -p UDP --dport 67 -j ACCEPT
+iptables -A OUTPUT -p UDP --dport 68 -j ACCEPT #dchcp
+iptables -A INPUT -p UDP --dport 68 -j ACCEPT
+
+# transfert wifi vers port Ethernet
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE #***
+
+#rediriger paquet
+iptables -A FORWARD -i eth0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT #**
+iptables -A FORWARD -i wlan0 -o eth0  -j ACCEPT #**
+
+-------------------ATTENTION mais iptable pour apt-get bloc a 0% quand meme A trouver??
+#Internet
+iptables -A OUTPUT -p tcp --dport 80 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p udp --dport 80 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 53 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p udp --dport 53 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 443 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p udp --dport 443 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 21 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p tcp --sport 21 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 20 -m state --state NEW -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT#***ok
+#tous ce qui sort doit rentrer pour le retour http...
+iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT 
+
+****************************************************************************************
+**************Fichier iptable plus compréhensible***************************************
+****************************************************************************************
+#!/bin/sh
+#On flush vide la table  iptable 
+iptables -F
+#supprime eventuellement chaine personnelles
+iptables -F
+
+#bloque toutes communication de la table filter de base par defaut (politic)
+iptables -P OUTPUT  DROP
+iptables -P INPUT   DROP
+iptables -P FORWARD DROP
+
+#autorise le loopback
+iptables -A INPUT  -i lo -j ACCEPT
+iptables -A OUTPUT -o lo -j ACCEPT
+#autorise le reseau local on dit qu'il est sur
+iptables -A INPUT  -i wlan0 -j ACCEPT
+iptables -A OUTPUT -o wlan0 -j ACCEPT
+
+#VNC
+iptables -A INPUT  -p tcp --dport 5900 -j ACCEPT #vnc
+iptables -A OUTPUT -p tcp --sport 5900 -j ACCEPT #vnc
+
+iptables -A INPUT -p tcp --dport 53 -j ACCEPT #dnsmasq
+iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+iptables -A INPUT -p UDP --dport 53 -j ACCEPT
+iptables -A OUTPUT -p UDP --dport 53 -j ACCEPT
+
+iptables -A INPUT -p UDP --dport 67 -j ACCEPT  #dnsmasq
+iptables -A OUTPUT -p UDP --dport 67 -j ACCEPT
+
+iptables -A OUTPUT -p UDP --dport 68 -j ACCEPT #dchcp
+iptables -A INPUT -p UDP --dport 68 -j ACCEPT
+
+# transfert wifi vers port Ethernet 'exterieur'
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE 
+
+#rediriger paquet
+iptables -A FORWARD -i wlan0 -o eth0 -m state --state NEW,RELATED,ESTABLISHED -j ACCEPT 
+#pour les connection établie on débloque le renvoi depuis internet
+iptables -A FORWARD -i eth0  -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+
+*************************************************
+**********pour appliquer sur le moment***********
+*./firewall.sh					*
+*pour chaque démarrage				*
+*dans le fichier /etc/rc.local   avant exit 0	*
+*bash /home/pi/firewall/iptable.sh		*
+*************************************************
+
+
+
+
+
+
+

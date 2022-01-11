@@ -1,0 +1,279 @@
+
+
+
+*************************************************************************************
+            INSTALLATION MQTT (Message Queuing Transprt) client (publish/subscribe)
+*************************************************************************************
+Effectivement, la prise en main a été de quelques heures, en voici les étapes :
+_ sudo apt-get install mosquitto : installation du broquer.
+_ sudo apt-get install mosquitto-clients : installation du client.
+
+test de fonctionnement en local:
+ouverture un subscriber: mosquitto_sub -h localhost -v -t test_channel
+ouverture d'un publish:  mosquitto_pub -h localhost  -t test_channel -m "Hello world"
+
+pour tester entre 2 raspberry:
+ouverture un subscriber: mosquitto_sub -h localhost-v -t test_channel        #attente  #rasp1: 192.168.1.20
+ouverture d'un publish:  mosquitto_pub -h 192.168.1.20-t test_channel -m "Hello world" #rasp2: 192.168.1.10
+
+pour tester avec une température et python: 
+raspi1:brocker : subscriber 192.168.1.20
+raspi2:        : publisher  192.168.1.10
+
+librairie python 3.4+: paho-mqtt (client paho version 3.1 du protocole MQTT et fournit une classe client
+sudo pip install paho-mqtt + bibliothèque 
+adafruit pour le capteur:
+	sudo apt-get install python-dev
+	git clone https://github.com/adafruit/Adafruit_Python_DHT.git
+	cd Adafruit_Python_DHT
+	sudo python setup.py install
+puis le programme client:
+il se connecte au brocker, un intervalle de 5s pour les mesures, il lit les données  dht.read_retry puis 
+les données sont rangées dans sensor_data avec les intitulé température et humidity, et
+les données sont envoyées au broker par client publish sur le cananl test_channel.
+------------------------------------------------------------------------------------------------
+import os											|
+import time											|
+import sys											|
+import Adafruit_DHT as dht									|
+import paho.mqtt.client as mqtt									|
+import json											|
+												|
+SERVEUR = '192.168.1.16'									|
+# ACCESS_TOKEN = 'DHT22_DEMO_TOKEN'
+
+# Data capture and upload interval in seconds. Less interval will eventually hang the DHT22.
+INTERVAL=5
+
+sensor_data = {'temperature': 0, 'humidity': 0}
+
+next_reading = time.time()
+
+client = mqtt.Client()
+
+# Set access token
+# client.username_pw_set(ACCESS_TOKEN)
+
+# Connect to ThingsBoard using default MQTT port and 60 seconds keepalive interval
+client.connect(SERVEUR, 1883, 60)
+
+client.loop_start()
+
+try:
+    while True:
+        humidity,temperature = dht.read_retry(dht.DHT22, 4)
+        humidity = round(humidity, 2)
+        temperature = round(temperature, 2)
+        print(u"Temperature: {:g}\u00b0C, Humidity: {:g}%".format(temperature, humidity))
+        sensor_data['temperature'] = temperature
+        sensor_data['humidity'] = humidity
+
+        # Sending humidity and temperature data to ThingsBoard
+        client.publish('test_channel', json.dumps(sensor_data), 1)
+
+        next_reading += INTERVAL
+        sleep_time = next_reading-time.time()
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+except KeyboardInterrupt:
+    pass
+
+client.loop_stop()
+client.disconnect()
+------------------------------------------------------------------------------------------------------
+
+
+
+Moi:
+
+_ /etc/mosquitto/mosquitto.conf : fichier de configuration.
+_ Créer une authentification :
+— /etc/mosquitto/conf.d
+: créer le fichier passwd dans ce répertoire.
+— mosquitto_passwd –c /etc/mosquitto/passwd sondes
+: crée le mot de passe dans le fichier passwd relié au login sondes
+— /etc/mosquitto/conf.d
+: créer le fichier auth.conf.
+— password_file /etc/moquitto/passwd
+: ajouter la ligne au fichier.
+— allow_anonymous false
+: ajouter la ligne au fichier.
+_ mosquitto_pub -h broker -u "sondes" -P "pass" -t test-channel -m "Hello"
+: publie sur le channel test la donnée Hello
+_ mosquitto_sub -v -h broker -u "sondes" -P "pass" -t test-channel
+: souscrit et lit sur le channel test et affiche Hello
+
+
+
+
+
+
+
+
+**************************************************************
+            INSTALLATION INFLUXDB
+**************************************************************
+Installation
+#1ier possibilité
+wget https://dl.influxdata.com/influxdb/releases/influxdb-1.7.5_linux_armhf.tar.gz
+tar xvfz influxdb-1.7.5_linux_armhf.tar.gz
+#2ième possibilité
+#définir un dépôt avec la signature sur un repository et juste avec la commande apt install.
+#Dans : /etc/apt/sources.list.d créer un fichier influx.list
+#Contenant la ligne : curl -sL https://repos.influxdata.com/influxdb.key | sudo apt-key add –
+#doit retourner : OK
+
+
+
+
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install apt-transport-https
+sudo apt-get install curl
+curl -sL https://repos.influxdata.com/influxdb.key | sudo apt-key add -
+echo "deb https://repos.influxdata.com/debian stretch stable" | sudo tee /etc/apt/sources.list.d/influxdb.list
+sudo apt-get update
+sudo apt-get install influxdb
+sudo nano /etc/influxdb/influxdb.conf
+
+
+#démarrer
+systemctl is-enabled influxdb et systemctl start influxdb
+Commande
+#se connecter
+influx
+#créer une base de données
+create database demo
+#créer un utilisateur
+create user dupond with password ‘pass’
+#donner les droits
+grant all on demo to dupond
+#durée de réplication
+Create retention policy thirty_days on telegraf Duration 30d REPLICATION 1 DEFAULT
+#affiche
+SHOW retention policies on telegraf
+#affficher les bases de données
+show databases
+#choisir une base de données
+use nomBase
+#afficher les tag et fields
+show tag keys from nomBase
+show field keys from nomBase
+#afficher les series
+show series
+#faire une requête sur le tag de données
+Select * from mqtt_temp limit 150
+Concept
+fields (champs) non indexés, ils sont associés à un horodatage, la requête doit analyser les champs un par un moins baisse de performance.
+tags (balises) optionnels, c’est une bonne idée car indexés, les requêtes sont rapides et stockent des métadonnées
+Les mesures (measurement) sont des chaines pour tous les utilisateurs
+<SQL une mesure est conceptuellement similaire à une table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**************************************************************
+            INSTALLATION TELEGRAF
+**************************************************************
+Installation
+apt-get install telegraf
+Conçu pour :
+Collecter les informations sur l’état de santé du système (processeur, mémoire, processus…)
+Il est initialement prévu et configuré pour permettre la surveillance de systèmes et de serveur
+s en particulier. Il est aussi modulaire et relève tous types d’informations dans 
+les 130 sources disponibles (input plugins) on a bien sur le plugin mqtt_consumer.
+
+Configuration 
+#***************************************# 
+# Configuration des plugin de Telegraf # 
+dans etc/telegraf/telegraf.conf # 
+#***************************************# 
+[global_tags] 
+[agent] 
+	interval = "10s" 
+	round_interval=true 
+	metric_batch_size = 1000 
+	metric_buffer_limit = 10000 
+	flush_interval = "3s" 
+	flush_jitter = "0s" 
+	debug = false 
+	hostname = "server"
+[[outputs.influxdb]] 
+urls = ["http://127.0.0.1:8086"] 
+database = "mqtt_base" 
+username = "nom de la base" 
+password = "mot de passe" 
+
+[[inputs.mqtt_consumer]] 
+#broker tcp, ssl, ws 
+servers = ["tcp://192.168.2.17:1883"] 
+#donner un nom 
+name_override = "mqtt_temp" 
+#niveau de service 
+qos = 0 
+#topics auxquels sabonner 
+topics = [ "mesure/esp8266/temperature" ] 
+#Authentification 
+username = "sondes" 
+password = "pass" 
+data_format = "value" 
+data_type = "float"
+
+[[inputs.mqtt_consumer]] 
+servers = ["tcp://192.168.2.17:1883"] 
+name_override = "mqtt_json" 
+qos = 0 
+topics = [ "mesure/esp8266/json" ] 
+username = "sondes" 
+password = "pass" 
+data_format = "json" 
+data_type = ["sensor", "temper", "pressure", "altitude"]
+
+**************************************************************
+            OU CHRONOGRAF
+**************************************************************
+
+
+
+
+
+
+
+
+
+
+**************************************************************
+            INSTALLATION GRAFANA
+**************************************************************
+Installation : https://grafana.com/grafana/download?platform=arm
+sudo apt update et upgrade
+wget https://dl.grafana.com/oss/release/grafana_6.0.2.armhf.deb
+sudo dpkg -i grafana_6.0.2_armhf.deb
+sudo apt update
+sudo apt update
+sudo apt - -fix-broken install #répare les dépendance ubuntu
+sudo /bin/systemctl daemon-reload # mise en service recharge systemd pour le nouveau service
+sudo /bin/systemctl enable grafana-server #valide et active le démarrage automatique de grafana
+sudo /bin/systemctl start grafana-server #démarre immédiatement
+accès au service
+http://localhost :3000 #login :admin pass :admin
+#configuration d’un data Source
+Name : ESP8266
+URL : http ;//locahost :8086
+Access : Server
+Auth : Basic #User:sondes Password:pass
+#InflusDB Details
+Database : telegraf
+
+

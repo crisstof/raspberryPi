@@ -1,0 +1,114 @@
+		***********************************************
+		*  Une fois notre carte raspberry construite: *
+  		*    https://www.raspberrypi.com/software/    *
+		***********************************************
+
+Configuration
+*****************************************************************************************
+*Réseau ip fixe										*
+*ajouter dans le fichier dhcpcd								*
+*/etc/dhcpcd.conf									*
+*											*			
+*interface eth0										*
+*static ip_address= 172.16.0.39								*
+*static routers= 172.16.0.254								*
+*static domain_name_servers= 172.16.0.138  172.16.0.168					*
+*											*
+*+Si l’adresse n’est pas prise en compte +						*
+*sudo systemctl daemon-reload								*
+*sudo systemctl restart dhcpcd								*								*
+*****************************************************************************************
+*Ancienne version									*
+*/etc/network/interfaces et remplacer la ligne  iface eth0 inet dhcp 			*
+*#ou manual par	auto eth0								*		*
+*    iface eth0 inet static								*
+*    address 192.168.10.200								*
+*    netmask 255.255.255.0								*
+*    network 192.168.10.0								*
+*    broadcast 192.168.10.255								*
+*	#prise en compte de l'adresse ip sans redémarrer: service dhcpcd restart	*
+*****************************************************************************************
+*#vous pouvez activer vnc ainsi pour le reste de la manipulation sur pc: raspi-config	*
+*#vnc ou ssh    l'acces avec le client: pi   et raspberry				*
+*sinon ajouter fichier: touch /boot/ssh #(port 22)					*
+*****************************************************************************************
+*Wifi en ip static									*
+*****************************************************************************************
+*CONFIGURATION du Hotspot								*
+*La nouvelle version de raspbian, la configuration de l’interface est gérée par dhcpcd	*
+*On doit lui dire d’ignorer wlan0 on va configurer l’ip static ailleurs. 		*
+*Dans /etc/dhcpcd.conf avant toutes interfaces nous ajoutons :  denyinterfaces wlan0 	* 
+*Ensuite dans /etc/network/interfaces.d/ (on a ici le lien ensuite) 			*
+*on crée un fichier : interfaceRasp1 et on configure en ajoutant les lignes:		*
+*-------------------------------------------------------				*
+*allow-hotplug wlan0  									*
+*iface wlan0 inet static  								*
+*    address 192.168.1.1								*
+*    netmask 255.255.255.0								*
+*    network 192.168.1.0								*
+*    broadcast 192.168.1.255								*
+*#    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf					*
+*------------------------------------------------------------------------****************
+Redémarrer dhcpcd : sudo service dhcpcd restart  ou sysctl restart dhcpcd
+Activer/désactiver  le wifi : ifup/ifdown wlan0   
+*********************************************************
+*********************************************************	
+*Si on veut juste relier le raspberry au wifi		*
+*dans /etc/ wpa_supplicant/wpa_supplicant.conf :	*
+*ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=0	*
+*update_config=1					*
+*country=FR						*
+*							*
+*Network={						*
+*	ssid=’’Iphonedechristophe’’			*
+*	psk=’’motdepasse’’				*
+*	key_mgmt=WPA-PSK				*
+*							*
+*}							*
+*********************************************************
+*********************************************************
+Si on est derrière un proxy				*
+*********************************************************
+Vous êtes derrière un proxy:
+ajouter dans /etc/environment
+export http_proxy="http://pi:raspi@172.16.0.254:8080"
+pour que le système utilise APT depuis un proxy pour les repository:
+ajouter dans /etc/apt/apt.conf.d/50raspi  la ligne
+Acquire::http::proxy "http://pi:raspi@172.16.0.254:8080";
+
+*****************************************************************************************
+Mise à l'heure du raspberry [sinon chrome detecte une erreur de temps]
+date --set "04 JAN 2019 10:56:00"
+ou 
+Serveur ntp mais il y a un service à partir du pi3:
+timedatectl status
+Résultat
+Local time: jeu. 2021-09-09 10:10:30 CEST
+           Universal time: jeu. 2021-09-09 08:10:30 UTC
+                 RTC time: n/a
+                Time zone: Europe/Paris (CEST, +0200)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+sinnon pour activer NTP timedatectl set-ntp True
+*****************************************************************************************
+clavier qwerty
+sudo raspi-config #choisir clavier french
+*****************************************************************************************
+				COMMANDES
+				----------
+
+Mise à jour
+apt update && apt upgrade -V
+
+connaitre le nom des cartes réseau
+ls /sys/class/net
+
+
+
+
+*****************************************************************************************
+
+
+
+
