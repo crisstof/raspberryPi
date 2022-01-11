@@ -1,7 +1,7 @@
 # raspberryPi
 
 [comment]: <> (logo)        
-[![raspberryPI_logo](rasp.logo.jfif](https://www.raspberrypi.com/)
+[![raspberryPI_logo](rasp_logo.jfif)](https://www.raspberrypi.com/)
 
 
    
