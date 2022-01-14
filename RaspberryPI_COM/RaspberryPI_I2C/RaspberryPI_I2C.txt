@@ -1,0 +1,819 @@
+		*********************************
+		*   I2C  Serial Bus Interface	*
+		*********************************
+
+Présentation
+------------
+Protocole de communication série développé par Philips Semiconductor (NXP).
+L’I2C est utilisé sur une large gamme d’appareils, des microcontrôleurs, CAN, DAC aux EEPROM, périphérique E/S et horloges en temps réel.
+I2C conçu pour être un bus semi-duplex, multi-esclaves, un maître peut communiquer avec plusieurs esclaves connectés au même bus,
+mais la communication ne peut avoir lieu que dans un sens à la fois, 1m de distance maxi.
+Alors que l’I2C est conçu pour autoriser plusieurs appareils maîtres, sur le Raspberry Pi, le Pi agit en tant que maître et 
+tous les appareils connectés au bus sont des esclaves.
+ 
+Fonctionnement
+--------------
+Le bus I2C utilise deux fils appelés SDA et SCL. 
+SDA (données série) transporte les paquets de données envoyés par les appareils maître et esclave.
+SCL (horloge série) transporte un signal d’horloge généré par le maitre et sert à synchroniser les paquets de données sur le fils SDA entre le maître et les esclaves.
+SDA et SCL sont connectés au fil d’alimentation +Vdd via une paire de résistance de rappel, à part sur PCB (carte prête à l'emploi). 
+
+Donc l’état pas défaut du bus I2C est élevé à la tension +Vdd. 
+Les tensions +Vdd sont 3,3V et 5V bien que d’autres tensions puissent être utilisée.
+Les données sont envoyées sur le bus I2C en tirant le fil SDA à 0V. 
+Les signaux d’horloge sont générés par le maître et les dispositifs esclaves envoient un paquet de données en réponse à une demande du maître.
+Comme le bus utilise la tension +Vdd du maître tous les appareils esclave fonctionnent également généralement à la même tension.
+Si un appareil esclave doit fonctionner à une tension différente de celle du maître, un décaleur de niveau I2C peut être utilisé pour servir d’interface 
+entre les différentes tensions du bus.
+Adresse I2C unique
+Le protocole permet l’utilisation d’un système d’adressage à 7 ou 10 bits. (10 bits rarement utilisé). 
+L’appareil maître enverra l’adresse au début de toute communication et seul l’appareil esclave à cette adresse répondra.
+
+Activation et Configuration de l’I²C sur le Raspberry Pi
+--------------------------------------------------------
+sudo apt-get upgrade
+sudo apt-get update
+reboot
+lsb_release -a  #version de raspbian
+raspi-config > Interface Options > P5 I2C #activer l’I2C (python-smbus i2c-tools par défaut sinon install)
+							  apt-get install python-smbus i2c-tools #voir python3-smbus python-dev python3-dev 
+sudo i2cdetect -y 1 #aucune detection normale rien n'est branché.
+
+
+********************************************TEST SENSOR EN I2C SUR RASPBERRYPI EN LANGAGE PYTHON*************************************************************************
+*************************************************************************************************************************************************************************
+********SENSOR PRESSURE MPRLS ADAFRUIT***********************************************************************************************************************************
+TEST Sensor Pressure MPRLS: Le port I2C raspberry sont les broches GPIO2 (SDA) et GPIO3 (SCL)
+capteur de pression MPRLS avec en particulier un embout en metal pour des tests de chambre à vide.
+Pression 0 à 25 PSI grande plage la pression ambiante, sur terre elle est de 14,5 PSI.
+Capteur sur carte de dérivation avec une régulation 3.3V et un décalage de niveau pour l'utiliser avec un Raspberry Pi,
+A l'intérieur un manomètre de détection de pression recouvert de gel silicone 
+avec un CAN 24 bits pré-cablé et compensé.
+Câblage:
+--------
+I2C donc nous utilisons deux fils données(SDA)/horloge(SCL).
+l'adresse I2C est 0x18 et vous ne pouvez pas la changer.
+VIN broche d'alimentation, la puce utilise 3VDC il y a un
+    régulateur de tension qui prend 3-5VDC, pour alimenter
+    la carte donnez lui la même puissance que le niveau logique du microcontrôleur
+3V3 sortie 3,3V du régulateur de tension fournit 100mA
+GND masse
+SCL Broche horloge connecter le microcontroleur.
+SDA Broche donnée  connecter le microcontroleur.
+RST broche d'entrée de réinitialisation matérielle.
+    tiré par défaut à la terre pour réinitialiser la carte.
+EOC broche de sortie de fin de conversion. Basculera pour faire
+savoir qu'une conversion de détection est prête à être lue.
+Facultatif mais accélérera un peu votre code d'interface. 
+Vous pouvez le laisser déconnecté et nous interrogerons la puce sur I2C pour savoir quand elle sera prête.
+
+(rouge)     (noir)  (vert)  (jaune)
+  VIN    3Vo  GND     SCL     SDA     EOC  RST
+   |           |       |       |
+ pin1         pin9    gpio3   gpio2
+
+
+RaspberryPi:
+------------
+i2cdetect -y -1  #affiche l'adresse 18   (0x18)
+
+pip3 install adafruit-circuitpython-mprls  #Installer la dernière version de la librairie Adafruit CircuitPython MPRLS
+les librairies fonctionne qu'avec Python3:
+sur raspberry nous avons 2 versions python (2.7.16) et python3 (3.7.3): python3 --version ou python --version (pratique)
+-----pressure.py---------------------------------------------
+# SPDX-FileCopyrightText: 2021 ladyada for Adafruit Industries
+# SPDX-License-Identifier: MIT
+
+import time
+import board
+import adafruit_mprls
+
+i2c = board.I2C()
+
+# Simplest use, connect to default over I2C
+mpr = adafruit_mprls.MPRLS(i2c, psi_min=0, psi_max=25)
+
+# You can also specify both reset and eoc pins
+"""
+import digitalio
+reset = digitalio.DigitalInOut(board.D5)
+eoc = digitalio.DigitalInOut(board.D6)
+mpr = adafruit_mprls.MPRLS(i2c, eoc_pin=eoc, reset_pin=reset,
+                           psi_min=0, psi_max=25)
+"""
+
+while True:
+    print((mpr.pressure,))
+    time.sleep(1)
+-----------------------------------------------------------------
+
+liens:
+https://learn.adafruit.com/adafruit-mprls-ported-pressure-sensor-breakout
+https://github.com/adafruit/Adafruit_CircuitPython_MPRLS
+https://raspberrytips.fr/installer-derniere-version-python/
+*************************************************************************************************************************************************************************
+
+********SENSOR BAROMETRIC PRESSURE TEMPERATURE  ALTITUDE*****************************************************************************************************************
+TEST Sensor GY-BMP280 de AZDelivery, capteur Bosh BMP280 contrôlé avec  I2C ou SPI.
+capteur de pression barométrique, de température et d'altitude pour Arduino ou Raspberry Pi.
+plage de mesure pression(300 à 1100hpa), altitude(9000m à -500m), température(-40°C à +85°C).
+Tension de fonctionnement de 1,7 - 3,6VDC.
+Câblage:
+--------
+VCC broche d'alimentation, 3,6VDC max
+GND masse
+SDA Broche donnée  connecter le microcontroleur pour le bus SPI c'est SDI.
+SCL Broche horloge connecter le microcontroleur pour le bus SPI c'est SCK.
+CSB Permet de passer du mode SPI au mode I2C. Par défaut, CSB=0 donc mode I2C.
+    Si CSB=1 au démarrage, alors le mode SPI est utilisé c'est le CS du SPI le chip select.
+SD0 Choix de l'adresse I2C. Si SD0=0, alors l'adresse est 0x76, si SD0=1 alors l'adrese est 0x77
+
+(rouge)   (noir) (jaune)  (vert)
+  VCC      GND   SDI/SDA  SCK.SCL  CSB   SD0
+   |        |       |       |
+ pin1      pin9    gpio2   gpio3
+
+Raspberry: Le port I2C sont les broches GPIO2 (SDA) et GPIO3 (SCL)
+
+RaspberryPi:
+------------
+i2cdetect -y -1  #affiche l'adresse 18   (0x76)
+pip3 list #affiche les librairies installée
+
+Avec la library (bibliothèque) bmp280:
+-------------------------------------
+sudo pip3 install bmp280
+-----temperature-and-pressure.py----------------------------------------------------------------------
+#!/usr/bin/env python
+import time
+from bmp280 import BMP280
+
+try:
+    from smbus2 import SMBus
+except ImportError:
+    from smbus import SMBus
+
+print("""temperature-and-pressure.py - Displays the temperature and pressure.
+Press Ctrl+C to exit!
+""")
+
+# Initialise the BMP280
+bus = SMBus(1)
+bmp280 = BMP280(i2c_dev=bus)
+
+while True:
+    temperature = bmp280.get_temperature()
+    pressure = bmp280.get_pressure()
+    print('{:05.2f}*C {:05.2f}hPa'.format(temperature, pressure))
+    time.sleep(1)
+--------------------------------------------------------------------------------------------------
+liens:
+------
+https://pypi.org/project/bmp280/
+https://github.com/pimoroni/bmp280-python
+--------------------------------------------------------------------------------------------------
+
+Avec la bibliothèque ADAFRUIT:
+------------------------------
+#Installer la dernière version de la librairie Adafruit CircuitPython MPRLS:
+sudo pip3 install adafruit-circuitpython-bmp280  
+
+-----temperature-pressure.py----------------------------------------------------------------------
+# SPDX-FileCopyrightText: 2021 ladyada for Adafruit Industries
+# SPDX-License-Identifier: MIT
+
+"""Simpletest Example that shows how to get temperature,
+   pressure, and altitude readings from a BMP280"""
+import time
+import board
+
+# import digitalio # For use with SPI
+import adafruit_bmp280
+
+# Create sensor object, communicating over the board's default I2C bus
+i2c = board.I2C()  # uses board.SCL and board.SDA
+bmp280 = adafruit_bmp280.Adafruit_BMP280_I2C(i2c)
+
+# OR Create sensor object, communicating over the board's default SPI bus
+# spi = board.SPI()
+# bmp_cs = digitalio.DigitalInOut(board.D10)
+# bmp280 = adafruit_bmp280.Adafruit_BMP280_SPI(spi, bmp_cs)
+
+# change this to match the location's pressure (hPa) at sea level
+bmp280.sea_level_pressure = 1013.25
+
+while True:
+    print("\nTemperature: %0.1f C" % bmp280.temperature)
+    print("Pressure: %0.1f hPa" % bmp280.pressure)
+    print("Altitude = %0.2f meters" % bmp280.altitude)
+    time.sleep(2)
+--------------------------------------------------------------------------------------------------
+liens:
+http://gilles.thebault.free.fr/spip.php?article47  (arduino+spi)
+https://github.com/kitflix/raspberrypi-iot-codes
+https://github.com/hendrychjan/valt-rpi            (raspberry spi avec librairie adafruit_bmp280)
+https://learn.adafruit.com/adafruit-bmp280-barometric-pressure-plus-temperature-sensor-breakout/circuitpython-test
+http://riton-duino.blogspot.com/2018/12/les-capteurs-de-temperature-humidite.html
+https://github.com/pimoroni/bmp280-python
+*************************************************************************************************************************************************************************
+
+********SENSOR ACCELEROMETRE 3-AXE GYROSOPE******************************************************************************************************************************
+TEST Sensor GY-521 MPU6050 de Invensense.
+Accéléromètre 3 axes gyroscope module 6-axe convertisseur AD 16 bits sorties en I2C.
+/ traitement de mouvement 6 axes 3 axes gyroscope, accélérateur 3 axes.
+(accéléromètre, gyroscope et sonde de température)
+il est possible de fournir une fréquence d'échantillonnage et lire les données
+utiles depuis une FIFO à intervalles réguliers (bon choix pour du traitement du signal)
+Nous pouvons trouver les bibliothèques pour Arduino, pilote dans les source officielles de Linux.
+Mais on a la chance que le tuto veut l'étudier, pour notre compréhension du bus.
+Nous avons la Register map et nous allons le connecter sur le bus i2c-1 d'un RaspberryPi et 
+nous allons nous servir de i2cget & i2cset.
+plage accéléromètre: +-2, +-4, +-8, +-16g
+plage gyroscope: +-250,500,1000,2000 °/s
+Câblage:
+--------
+l'adresse I2C est 0x18 et vous ne pouvez pas la changer.
+VCC broche d'alimentation, 3,6VDC max
+GND masse
+SCL Broche horloge connecter le microcontroleur.
+SDA Broche donnée  connecter le microcontroleur.
+adresse par défaut 0x68
+Raspberry: Le port I2C sont les broches GPIO2 (SDA) et GPIO3 (SCL)
+
+(rouge)   (noir)  (vert) (jaune)  
+  VCC      GND      SCL    SDA     XDA    XCL   ADC   INT
+   |        |       |       |
+ pin1      pin9    gpio3  gpio2
+
+
+
+RaspberryPi sans bibliothèque mais avec les registres constructeur:
+------------------------------------------------------------------
+i2cdetect -y -1  #affiche l'adresse 18   (0x68)
+
+- Configurer la plage accéléromètre ACCEL_CONFIG:
+i2cset -y 1 0x68  0x1C  0x00 #chois AFS_SEL=0 pour Full Scale Range +-2g
+Lecture de l'axe Z ACCEL_ZOUT_x (perpendiculaire au composant facile à manipuler)
+Données lisible sur 2 registre 0x3F (bit poids fort) et 0x40 (bit de poids faible)
+Composant horizontale (vers le haut) mesure l'accélération de la gravité.
+Lit les 2 octets en une seule lecture:
+i2cget -y 1 0x68 0x3F w
+0x6845 l'affichage de i2cget inverse le bits de poids fort et faible résultat 0x4568,
+datasheet: donnée sur 16bits complément à 2, résultat en décimal: 17768 soit 1,08g (il y a 16384 LSB par g)
+
+- Configurer le sample rate (taux d'échantillonnage) registres SMPRT_DIV & CONFIG:
+Les données sont copiées vers les registres publics à une certaine fréquence. 
+Il n’y a pas de signal extérieur utilisable pour la synchronisation. De même, on force le filtrage à 0 :
+i2cset -y 1 0x68 0x1A 0x00 # CONFIG
+Maintenant, nous pouvons configurer le sample rate divider (SMPRT_DIV). 
+Nous souhaitons un sample rate de 1kHz. D’après la datasheet, cela revient à faire 8kHz / (1+SMPLRT_DIV). 
+Nous allons donc écrire 7 dans SMPLRT_DIV :
+i2cset -y 1 0x68 0x19 0x07 # Pour 1 kHz - 8kHz /(1 + 7)
+i2cset -y 1 0x68 0x19 0x4F # Pour 100Hz - 8kHz /(1 + 79)
+
+- Configurer de la FIFO interne avec FIFO_EN et USER_CTRL
+Le MPU-6050 dispose d’une FIFO interne de 1024 octets. 
+Elle est utile lorsqu’on veut lire une donnée avec une fréquence d’échantillonnage élevée. 
+Il faut commencer par activer cette FIFO (et y faire un RESET au passage) :
+i2cset -y 1 0x68 0x6A 0x44
+
+Nous allons activer la copie des données de l’accéléromètre dans la FIFO :
+i2cset -y 1 0x68 0x23 0x08 # Pour lire les donnés de l'accéléromètre
+i2cset -y 1 0x68 0x23 0x80 # Pour lire à la place les donnés de température
+À présent, les données de l’accéléromètre sont copiées dans la FIFO. 
+Il y a 6 bytes pour les 3 axes de l’accéléromètre. 
+Comme la FIFO fait 1024 bytes, cela nous donne environ 170 mesures (1024/6) avant de remplir la FIFO. 
+Soit 170 millisecondes avec notre fréquence d’échantillonnage de 1 kHz.
+
+Lecture des données de la FIFO du MPU6050
+Plusieurs registres peuvent nous aider à lire les données de la FIFO, à commencer par
+FIFO_COUNT_L et FIFO_COUNT_H (0x72 et 0x 73) :
+i2cget -y 1 0x68 0x72 w # on lit en une seule fois les 2 registres
+0x0004 # soit 0x0400 (i2cget inverse les bits) soit 1024, la fifo est pleine. 
+Logique nous n'avons encore rien lu à ce stade.
+Maintenant il est possible de lire le contenu de la FIFO, octet par octet :
+i2cget -y 1 0x68 0x74
+À ce stade, il est certain qu’utiliser i2cget n’est plus suffisant et qu’il faut utiliser un 
+langage de programmation tel que C ou C++. 
+Pour augmenter la fréquence échantillonnage, il sera également nécessaire d’augmenter la vitesse 
+du bus i2c ou bien de passer à SPI.
+
+Augmenter la vitesse du bus i2c du Raspberry-pi
+La vitesse maximale de fonctionnement du Bus i2c du MPU6050 est de 400kHz. 
+Par défaut, la fréquence de fonctionnement du bus i2c du Raspberry-pi est de 100kHz, 
+il est donc nécessaire d’augmenter la vitesse de fonctionnement du bus pour améliorer les performances. 
+Pour y parvenir, modifiez le contenu du fichier « /boot/config.txt » du Raspberry-Pi et ajoutez-y :
+dtparam=i2c_arm_baudrate=400000
+Je suis parvenu à augmenter la vitesse jusqu’à 2MHz. 
+Notez que cela fonctionne avec ce composant mais que ce ne sera peut-être pas le cas pour tous. 
+Redémarrez le Raspberry-Pi pour appliquer la modification.
+Attention choisir la vitesse de l’appareil le plus lent du bus I2C.
+
+Programme en C code en fin de fichier (partie discussions)
+Programme en python(smbus) code en fin de fichier (partie discussions)
+--------------------------------------------------------------------------------------------------
+-----MP6050-acceler.py---------------------exemple------------------------------------------------
+import smbus            
+from time import sleep          
+import math
+import RPi.GPIO as GPIO
+import sys
+ 
+PWR_MGMT_1   = 0x6B
+SMPLRT_DIV   = 0x19
+CONFIG       = 0x1A
+GYRO_CONFIG  = 0x1B
+INT_ENABLE   = 0x38
+ACCEL_XOUT_H = 0x3B
+ACCEL_YOUT_H = 0x3D
+ACCEL_ZOUT_H = 0x3F
+GYRO_XOUT_H  = 0x43
+GYRO_YOUT_H  = 0x45
+GYRO_ZOUT_H  = 0x47
+bus = smbus.SMBus(1)
+ 
+def MPU_Init():
+    bus.write_byte_data(Device_Address, SMPLRT_DIV, 7)
+    bus.write_byte_data(Device_Address, PWR_MGMT_1, 1)
+    bus.write_byte_data(Device_Address, CONFIG, 0)
+    bus.write_byte_data(Device_Address, GYRO_CONFIG, 24)
+    bus.write_byte_data(Device_Address, INT_ENABLE, 1)
+ 
+def read_raw_data(addr):
+        high = bus.read_byte_data(Device_Address, addr)
+        low = bus.read_byte_data(Device_Address, addr+1)
+        value = ((high << 8) | low)
+        if(value > 32768):
+                value = value - 65536
+        return value
+ 
+ 
+def dist(a, b):
+    return math.sqrt((a*a) + (b*b))
+ 
+def get_y_rotation(x, y, z):
+    radians = math.atan2(y, z)
+    return -(radians * (180.0 / math.pi))
+  
+def get_x_rotation(x, y, z):
+    radians = math.atan2(x, dist(y, z))
+    return -(radians * (180.0 / math.pi))
+ 
+if __name__ == "__main__":
+         
+    Device_Address = 0x68   
+    MPU_Init()
+     
+    print("Reading MPU6050...")
+    try:
+        while True:
+            acc_x = read_raw_data(ACCEL_XOUT_H)
+            acc_y = read_raw_data(ACCEL_YOUT_H)
+            acc_z = read_raw_data(ACCEL_ZOUT_H)
+             
+            acclX_scaled = acc_x * .000061 * 9.80665
+            acclY_scaled = acc_y * .000061 * 9.80665
+            acclZ_scaled = acc_z * .000061 * 9.80665
+             
+            x_angle = get_x_rotation(acclX_scaled, acclY_scaled, acclZ_scaled)
+            y_angle = get_y_rotation(acclX_scaled, acclY_scaled, acclZ_scaled)
+            print("X rotation: ", x_angle)
+            print("Y rotation: ",y_angle)
+            sleep(.50)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except Exception as e:
+        print(e)
+        sys.exit(0)
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+AVEC LIBRAIRIE Adafruit
+sudo pip3 install adafruit-circuitpython-mpu6050
+------mpu6050.py------
+# SPDX-FileCopyrightText: 2021 ladyada for Adafruit Industries
+# SPDX-License-Identifier: MIT
+
+import time
+import board
+import adafruit_mpu6050
+
+i2c = board.I2C()  # uses board.SCL and board.SDA
+mpu = adafruit_mpu6050.MPU6050(i2c)
+
+while True:
+    print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % (mpu.acceleration))
+    print("Gyro X:%.2f, Y: %.2f, Z: %.2f rad/s" % (mpu.gyro))
+    print("Temperature: %.2f C" % mpu.temperature)
+    print("")
+    time.sleep(1)
+-------------------------------------------------------------------------------------------------------------------------------------
+
+
+liens:
+https://openest.io/2020/01/21/utiliser-mpu6050-raspberry-pi/
+https://raspberrypi-tutorials.fr/mesure-de-la-rotation-et-de-lacceleration-avec-le-raspberry-pi/
+https://github.com/m-rtijn/mpu6050    (Source dans prog)
+https://www.hobbytronics.co.uk/accelerometer-info
+https://learn.adafruit.com/mpu6050-6-dof-accelerometer-and-gyro/python-and-circuitpython
+https://pypi.org/project/mpu6050-raspberrypi/
+*************************************************************************************************************************************************************************
+*************************************************************************************************************************************************************************
+
+********OTHERS SENSORS ******************************************************************************************************************************
+xxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*************************************************************************************************************************************************************************
+*************************************************************************************************************************************************************************
+********DISCUSSIONS & CODES**********************************************************************************************************************************************
+*************************************************************************************************************************************************************************
+*************************************************************************************************************************************************************************
+
+
+**BMP280**
+du code:
+https://github.com/BoschSensortec/BMP280_driver/
+Le code semble semble gérer les données i2c, mais d'après ce que je peux dire, il semble accéder aux registres 
+de l'appareil i2c directement en tant qu'adresses mémoire, donc je doute qu'il s'agisse de code qui est prêt à fonctionner 
+sur le Pi.
+
+Quelle est la bonne façon de lire les données d'un appareil comme celui-ci via i2c ? Y a-t-il un fichier /dev que je peux lire ?
+
+Lorsque j'ai ajouté un RTC à ce système tout à l'heure (je voulais un périphérique i2c fonctionnel sur la machine, pour vérifier 
+que j'avais correctement configuré i2c), j'ai dû entrer la commande:
+echo ds1307 0x68 > /sys/class/i2c-adapter/i2c-1/new_device   #aucune idée de ce qu'il fait
+
+Ecrire sa propre classe python pour ce capteur:
+Suggestion de la fichie technique:
+	Pour lire les données après une conversion, il est fortement recommandé d'utiliser une lecture en rafale et de ne pas
+adresser chaque registre individuellement
+J'ai jeté un œil aux fonctions i2c, mais chaque fois qu'il y a un registre à passer à une fonction, il ne va pas lire les registres suivants.
+comme rien n'a dit. avec i2c_read_i2c_block_data, je peux obtenir la lecture en rafale.
+
+
+À partir de la ligne de commande, je ferais
+pigs i2co 1 0x76 0
+pigs i2cwd 0 0xf7 # pointer vers le registre 0xf7, en supposant que gérer 0
+pigs i2crd 0 6 # 'burst' lire les registres 0xf7-0xfc, en supposant que gérer 0
+
+À partir de Python, j'utiliserais i2c_read_device et i2c_write_device.
+ça revient pareil
+self.pi.i2c_write_device(self.i2c, [self.rawBar_msb])
+		(n,data) = self.pi.i2c_read_device(self.i2c,6)
+		print (data[0],data[1],data[2],data[3],data[4],data[5])
+		(n,data) = self.pi.i2c_read_i2c_block_data(self.i2c, self.rawBar_msb, 6)
+		print (data[0],data[1],data[2],data[3],data[4],data[5])
+
+
+je ne savais pas que je pouvais utiliser wd - rd :)
+c'est probablement l'appel sous read_i2c_block_data, n'est-ce pas ?
+
+Les commandes de périphérique de lecture/écriture utilisent le périphérique brut (/dev/i2c-1) et sont des commandes I2C authentiques.
+
+Toutes les autres sont en fait des commandes SMBus qui sont (en quelque sorte) construites sur I2C.
+
+Je ne vois vraiment pas l'intérêt des commandes SMBus. Il est souvent assez difficile de mapper les commandes 
+de la feuille de données aux commandes SMBus, mais trivial de les mapper aux commandes I2C de lecture/écriture.
+
+code fonctionnelle mais tout prêt à méditer:
+https://github.com/adafruit/Adafruit_Python_BMP
+https://github.com/cudacode/Python-BMP280
+https://cdn-shop.adafruit.com/datasheets/BST-BMP280-DS001-11.pdf
+
+https://github.com/search?q=org%3Aadafruit+bmp280
+https://github.com/adafruit/Adafruit_BMP280_Library
+https://github.com/adafruit/Adafruit_CircuitPython_BMP280
+https://github.com/adafruit/Adafruit-BMP280-Breakout-PCB
+
+commencez par le code bmp180
+le code de compensation est dans la fiche technique
+il ne vous manquerait que le filtre IIR
+
+Je * pense * avoir un moyen de créer quelque chose qui fonctionnera : commencez par le code de référence Bosch pour 
+obtenir les calculs de sortie corrects et remplacez tous les accès qu'ils effectuent aux registres mappés en mémoire 
+i2c par des appels aux fonctions dans WiringPI qui accède aux registres i2c de manière plus portable.
+L'utilisation des wrappers de câblagePI sera moins portable car le code ne fonctionnera que sur le Pi. L'utilisation 
+du périphérique brut fonctionnera sur tous les périphériques Linux.
+
+
+
+**MPU6050**
+********CODE C ACCELEROMETRE**********************************************************************************************************************************************
+
+
+Il existe un driver pour le MPU6050 dans les sources officielles de Linux. 
+Malheureusement, je ne peux pas l’utiliser car il n’est pas optimisé pour mon cas d’utilisation. 
+Je n’ai besoin que des données d’accélération, mais j’en ai besoin avec une fréquence élevée. 
+Contrairement au driver qui lit toutes les informations (gyroscope, température, accélération).
+J’ai donc écrit un petit programme en C qui fait exactement ce que nous avons fait avec i2cget/i2cset. 
+Le Noyau Linux fournit une interface de programmation i2c pour l’espace utilisateur https://www.kernel.org/doc/Documentation/i2c/dev-interface. 
+Vous pouvez le récupérer simplement ici sur github https://gist.github.com/JGrossholtz/24e427b62c2e5dbbec6546c55c8979d8.
+
+Ce programme lit les données d’accélération et de température à une fréquence de 1000Hz et 
+nécessite d’augmenter significativement la vitesse de fonctionnement du bus.
+
+/*
+ * This file is an MPU6050 demonstration.
+ * https://openest.io/en/2020/01/21/mpu6050-accelerometer-on-raspberry-pi/
+ * Copyright (c) 2020 Julien Grossholtz - https://openest.io.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <linux/i2c-dev.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include 
+#include 
+#include 
+#include 
+#include 
+
+#define MPU6050_I2C_ADDR 0x68
+
+#define REG_ACCEL_ZOUT_H 0x3F
+#define REG_ACCEL_ZOUT_L 0x40
+#define REG_PWR_MGMT_1 0x6B
+#define REG_ACCEL_CONFIG 0x1C
+#define REG_SMPRT_DIV 0x19
+#define REG_CONFIG 0x1A
+#define REG_FIFO_EN 0x23
+#define REG_USER_CTRL 0x6A
+#define REG_FIFO_COUNT_L 0x72
+#define REG_FIFO_COUNT_H 0x73
+#define REG_FIFO 0x74
+#define REG_WHO_AM_I 0x75
+
+int file = -1;
+
+// Please note, this is not the recommanded way to write data
+// to i2c devices from user space.
+void i2c_write(__u8 reg_address, __u8 val) {
+	char buf[2];
+	if(file < 0) {
+		printf("Error, i2c bus is not available\n");
+		exit(1);
+	}
+
+	buf[0] = reg_address;
+	buf[1] = val;
+
+	if (write(file, buf, 2) != 2) {
+		printf("Error, unable to write to i2c device\n");
+		exit(1);
+	}
+
+}
+
+// Please note, this is not thre recommanded way to read data
+// from i2c devices from user space.
+char i2c_read(uint8_t reg_address) {
+	char buf[1];
+	if(file < 0) {
+		printf("Error, i2c bus is not available\n");
+		exit(1);
+	}
+
+	buf[0] = reg_address;
+
+	if (write(file, buf, 1) != 1) {
+		printf("Error, unable to write to i2c device\n");
+		exit(1);
+	}
+
+
+	if (read(file, buf, 1) != 1) {
+		printf("Error, unable to read from i2c device\n");
+		exit(1);
+	}
+
+	return buf[0];
+
+}
+
+uint16_t merge_bytes( uint8_t LSB, uint8_t MSB) {
+	return  (uint16_t) ((( LSB & 0xFF) << 8) | MSB);
+}
+
+// 16 bits data on the MPU6050 are in two registers,
+// encoded in two complement. So we convert those to int16_t
+int16_t two_complement_to_int( uint8_t LSB, uint8_t MSB) {
+	int16_t signed_int = 0;
+	uint16_t word;
+
+	word = merge_bytes(LSB, MSB);
+
+	if((word & 0x8000) == 0x8000) { // negative number
+		signed_int = (int16_t) -(~word);
+	} else {
+		signed_int = (int16_t) (word & 0x7fff);
+	}
+
+	return signed_int;
+}
+
+int main(int argc, char *argv[]) {
+	int adapter_nr = 1; /* probably dynamically determined */
+	char bus_filename[250];
+	char accel_x_h,accel_x_l,accel_y_h,accel_y_l,accel_z_h,accel_z_l,temp_h,temp_l;
+	uint16_t fifo_len = 0;
+	int16_t x_accel = 0;
+	int16_t y_accel = 0;
+	int16_t z_accel = 0;
+	int16_t temp = 0;
+	float x_accel_g, y_accel_g, z_accel_g, temp_f;
+
+	snprintf(bus_filename, 250, "/dev/i2c-1", adapter_nr);
+	file = open(bus_filename, O_RDWR);
+	if (file < 0) {
+		/* ERROR HANDLING; you can check errno to see what went wrong */
+		exit(1);
+	}
+
+
+	if (ioctl(file, I2C_SLAVE, MPU6050_I2C_ADDR) < 0) {
+		/* ERROR HANDLING; you can check errno to see what went wrong */
+		exit(1);
+	}
+
+	i2c_write(REG_PWR_MGMT_1, 0x01);
+	i2c_write(REG_ACCEL_CONFIG, 0x00);
+	i2c_write(REG_SMPRT_DIV, 0x07);
+	i2c_write(REG_CONFIG, 0x00);
+	i2c_write(REG_FIFO_EN, 0x88);
+	i2c_write(REG_USER_CTRL, 0x44);
+
+	while(1) {
+		accel_x_h = i2c_read(REG_FIFO_COUNT_L);
+		accel_x_l = i2c_read(REG_FIFO_COUNT_H);
+		fifo_len = merge_bytes(accel_x_h,accel_x_l);
+
+		if(fifo_len == 1024) {
+			printf("fifo overflow !\n");
+			i2c_write(REG_USER_CTRL, 0x44);
+			continue;
+		}
+
+		if(fifo_len >= 8) {
+			accel_x_h = i2c_read(REG_FIFO);
+			accel_x_l = i2c_read(REG_FIFO);
+			accel_y_h = i2c_read(REG_FIFO);
+			accel_y_l = i2c_read(REG_FIFO);
+			accel_z_h = i2c_read(REG_FIFO);
+			accel_z_l = i2c_read(REG_FIFO);
+			temp_h = i2c_read(REG_FIFO);
+			temp_l= i2c_read(REG_FIFO);
+
+			x_accel= two_complement_to_int(accel_x_h,accel_x_l);
+			x_accel_g = ((float) x_accel)/16384;
+
+			y_accel= two_complement_to_int(accel_y_h,accel_y_l);
+			y_accel_g = ((float) y_accel)/16384;
+
+			z_accel= two_complement_to_int(accel_z_h,accel_z_l);
+			z_accel_g = ((float) z_accel)/16384;
+
+			temp = two_complement_to_int(temp_h, temp_l);
+			temp_f = (float)temp/340 + 36.53; // calculated as described in the MPU60%) register map document
+
+			printf("x_accel %.3fg	y_accel %.3fg	z_accel %.3fg	temp=%.1fc         \r", x_accel_g, y_accel_g, z_accel_g, temp_f);
+		} else {
+			usleep(10000);
+		}
+
+	}
+
+	return 0;
+}
+
+
+
+
+
+
+
+******SMBUS PYTHON************
+AVEC PYTHON ET SMBUS:
+--------------------
+#!/usr/bin/python
+import smbus
+import math
+ 
+# Register
+power_mgmt_1 = 0x6b
+power_mgmt_2 = 0x6c
+ 
+def read_byte(reg):
+    return bus.read_byte_data(address, reg)
+ 
+def read_word(reg):
+    h = bus.read_byte_data(address, reg)
+    l = bus.read_byte_data(address, reg+1)
+    value = (h << 8) + l
+    return value
+ 
+def read_word_2c(reg):
+    val = read_word(reg)
+    if (val >= 0x8000):
+        return -((65535 - val) + 1)
+    else:
+        return val
+ 
+def dist(a,b):
+    return math.sqrt((a*a)+(b*b))
+ 
+def get_y_rotation(x,y,z):
+    radians = math.atan2(x, dist(y,z))
+    return -math.degrees(radians)
+ 
+def get_x_rotation(x,y,z):
+    radians = math.atan2(y, dist(x,z))
+    return math.degrees(radians)
+ 
+bus = smbus.SMBus(1) # bus = smbus.SMBus(0) fuer Revision 1
+address = 0x68       # via i2cdetect
+ 
+# Aktivieren, um das Modul ansprechen zu koennen
+bus.write_byte_data(address, power_mgmt_1, 0)
+ 
+print "Gyroskop"
+print "--------"
+ 
+gyroskop_xout = read_word_2c(0x43)
+gyroskop_yout = read_word_2c(0x45)
+gyroskop_zout = read_word_2c(0x47)
+ 
+print "gyroskop_xout: ", ("%5d" % gyroskop_xout), " skaliert: ", (gyroskop_xout / 131)
+print "gyroskop_yout: ", ("%5d" % gyroskop_yout), " skaliert: ", (gyroskop_yout / 131)
+print "gyroskop_zout: ", ("%5d" % gyroskop_zout), " skaliert: ", (gyroskop_zout / 131)
+ 
+print
+print "Beschleunigungssensor"
+print "---------------------"
+ 
+beschleunigung_xout = read_word_2c(0x3b)
+beschleunigung_yout = read_word_2c(0x3d)
+beschleunigung_zout = read_word_2c(0x3f)
+ 
+beschleunigung_xout_skaliert = beschleunigung_xout / 16384.0
+beschleunigung_yout_skaliert = beschleunigung_yout / 16384.0
+beschleunigung_zout_skaliert = beschleunigung_zout / 16384.0
+ 
+print "beschleunigung_xout: ", ("%6d" % beschleunigung_xout), " skaliert: ", beschleunigung_xout_skaliert
+print "beschleunigung_yout: ", ("%6d" % beschleunigung_yout), " skaliert: ", beschleunigung_yout_skaliert
+print "beschleunigung_zout: ", ("%6d" % beschleunigung_zout), " skaliert: ", beschleunigung_zout_skaliert
+ 
+print "X Rotation: " , get_x_rotation(beschleunigung_xout_skaliert, beschleunigung_yout_skaliert, beschleunigung_zout_skaliert)
+print "Y Rotation: " , get_y_rotation(beschleunigung_xout_skaliert, beschleunigung_yout_skaliert, beschleunigung_zout_skaliert)
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+---resultat----
+Gyroscope
+--------
+gyroscope_xout : -260 à l'échelle : -2
+gyroscope_yout : -154 à l'échelle : -2
+gyroscope_salt : 78 échelle : 0
+
+Accéléromètre
+---------------------
+Accélération_xout : -1048 à l'échelle : -0,06396484375
+Accélération_yout : -676 mis à l'échelle : -0.041259765625
+Accélération_zout : 16644 à l'échelle : 1.01586914062
+X Rotation:  -2.32121150537
+Y Rotation:  3.59994842011
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+

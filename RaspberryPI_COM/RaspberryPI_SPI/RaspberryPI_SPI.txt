@@ -1,0 +1,105 @@
+	*****************************************
+	*   SPI  Serial Peripheral Interface	*
+	*****************************************
+
+Présentation
+------------
+Protocole de communication série 
+Le SPI permet une communication entre un maître et un ou plusieurs esclaves. 
+Le maître impose la fréquence d’horloge et sélectionne l’esclave auquel les données sont envoyées. 
+La ligne MOSI permet d’envoyer des données depuis le maître vers l’esclave. 
+La ligne MISO est en haute-impédance jusqu’au moment où l’esclave est sélectionné et où il doit envoyer des données.
+Lorsqu’on dispose de plusieurs esclaves, 
+ils peuvent être connectés sur un principe de bus
+(le maître sélectionne parmi ses multiples sorties SS0, SS1, etc. l’esclave auquel il s’adresse) 
+ou en daisy-chain 
+(les lignes MISO et MOSI sont connectées en cascade, le nombre de coups d’horloge permettant de sélectionner 
+le périphérique parmi l’ensemble qui se comporte alors comme une sorte de registre à décalage).
+
+RaspberryPi, activer le mode spi.
+nano /boot/config.txt #on a dtparam=spi=on
+lsmod | grep spi_
+
+
+
+**************************SENSOR BAROMETRIC PRESSURE TEMPERATURE  ALTITUDE**********************************
+TEST Sensor GY-BMP280 de AZDelivery contrôlé avec  I2C ou SPI
+capteur de pression barométrique, de température et d'altitude pour Arduino ou Raspberry Pi.
+plage de mesure pression(300 à 1100hpa), altitude(9000m à -500m), température(-40°C à +85°C).
+c'est un capteur Bosh BMP280, contrôlé avec I2C ou SPI.
+Tension de fonctionnement de 1,7 - 3,6VDC.
+Câblage:
+--------
+
+VCC broche d'alimentation, 3,6VDC max
+GND masse
+SDI/MOSI Broche donnée  connecter le microcontroleur pour le bus I2C c'est SDA.
+SCK Broche horloge connecter le microcontroleur pour le bus I2C c'est SCL.
+CSB Permet de passer du mode SPI au mode I2C. Par défaut, CSB=0 donc mode I2C.
+    Si CSB=1 au démarrage, alors le mode SPI est utilisé c'est le CS du SPI le chip select.
+SD0/MISO Choix de l'adresse I2C. Si SD0=0, alors l'adresse est 0x76, si SD0=1 alors l'adrese est 0x77
+
+(rouge)        (noir)   (jaune)        (vert)     (gris)   (orange)
+  VCC           GND     SDI/MOSI/SDA  SCK.SCL    CSB/CS    SD0/MISO
+   |             |         |             |         |         |
+ pin17(3.3v)    pin9      gpio10        gpio11   gpio8/D8     gpio9
+
+Raspberry: Le port I2C sont les broches GPIO2 (SDA) et GPIO3 (SCL)
+
+RaspberryPi:
+------------
+sudo pip3 install adafruit-circuitpython-bmp280
+pip3 list #affiche les librairies installée
+
+
+sudo pip3 install bmp280
+-----spi-temperature-and-pressure.py---------------------------------------------
+"""Simpletest Example that shows how to get temperature,
+   pressure, and altitude readings from a BMP280"""
+import time
+import board
+import busio
+import digitalio # For use with SPI
+import adafruit_bmp280
+
+# OR Create sensor object, communicating over the board's default SPI bus
+spi = busio.SPI(board.SCK, board.MOSI,board.MISO)
+bmp_cs = digitalio.DigitalInOut(board.D8) #CE0
+bmp280 = adafruit_bmp280.Adafruit_BMP280_SPI(spi, bmp_cs)
+
+# change this to match the location's pressure (hPa) at sea level
+bmp280.sea_level_pressure = 1013.25
+
+while True:
+    print("\nTemperature: %0.1f C" % bmp280.temperature)
+    print("Pressure: %0.1f hPa" % bmp280.pressure)
+    print("Altitude = %0.2f meters" % bmp280.altitude)
+    time.sleep(2)
+
+OU
+
+spi = board.SPI()
+bmp_cs = digitalio.DigitalInOut(board.D8) #CE0
+bmp280 = adafruit_bmp280.Adafruit_BMP280_SPI(spi, bmp_cs)
+
+
+---------------------------------------------------------------------------------
+liens:
+------
+https://learn.adafruit.com/adafruit-bmp280-barometric-pressure-plus-temperature-sensor-breakout/circuitpython-test
+https://github.com/adafruit/Adafruit_CircuitPython_BMP280
+https://www.blaess.fr/christophe/2012/11/02/spi-sur-raspberry-pi-1/
+https://pypi.org/project/bmp280/
+https://raspberrypi.pagesperso-orange.fr/dossiers/26-19.htm
+https://github.com/adafruit/Adafruit_CircuitPython_BMP280/actions/
+https://forums.raspberrypi.com/viewtopic.php?t=219216
+
+********************************************************************************************************
+********DISCUSSIONS*************************************************************************************
+#installer python SPI wrapper
+apt install -y python-spidev python3-spidev
+git clone https://github.com/Gadgetoid/py-spidev.git #a voir
+
+
+
+

@@ -14,6 +14,31 @@ Documentation
 -------------
 
 
+##GPIO & BUS
+
+
+
+
+Glossaire
+---------
+GPIO	General Purpose Input/Output					(Entrée/sortie à usage général)
+UART	Universal Asynchronous Receive Transmit
+I2C		Inter-Integrated Circuit
+SPI		Serial Peripheral Interface
+USB		Universal Serial Bus
+HDMI	High-Definition Multimedia Interface
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 [1]: https://www.raspberrypi.com/

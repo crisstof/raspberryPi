@@ -16,11 +16,11 @@ Configuration
 *											*
 *+Si l’adresse n’est pas prise en compte +						*
 *sudo systemctl daemon-reload								*
-*sudo systemctl restart dhcpcd								*								*
+*sudo systemctl restart dhcpcd								*
 *****************************************************************************************
 *Ancienne version									*
 */etc/network/interfaces et remplacer la ligne  iface eth0 inet dhcp 			*
-*#ou manual par	auto eth0								*		*
+*#ou manual par	auto eth0								*		
 *    iface eth0 inet static								*
 *    address 192.168.10.200								*
 *    netmask 255.255.255.0								*

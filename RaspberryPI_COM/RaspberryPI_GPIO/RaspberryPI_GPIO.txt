@@ -1,0 +1,80 @@
+		*****************************************
+		*   GPIO  General Purpose Input/Output	*
+		*****************************************
+
+Présentation
+------------
+GPIO sont des ports d'entrées-sorties très utilisés dans le monde des microcontrôleurs, 
+en particulier dans le domaine de l'électronique embarquée, qui ont fait leur apparition 
+au début des années 1980.
+ 
+Fonctionnement
+--------------
+GPIO23 pin16
+
+raspberryPi:
+------------
+import RPi.GPIO as GPIO
+import time
+pin = 16  # utilisation de la pin 16
+GPIO.setmode(GPIO.BOARD)  # numérotation BOARD
+GPIO.setup(pin, GPIO.OUT)  # activation de la pin 16 en sortie
+try: 
+    while 1:  # boucle sans fin
+        GPIO.output(pin, 1)  # allumer la led
+        time.sleep(1)  # temporisation en seconde
+        GPIO.output(pin, 0)  # eteindre la led
+        time.sleep(1)  # temporisation en seconde
+ 
+except:
+    GPIO.cleanup()  # extinction de la led à l'arrêt du programme
+
+
+
+liens:
+-----
+http://emery.claude.free.fr/raspberry-led-blink.html
+
+***********************************************************************************************************
+Avec bouton
+import RPi.GPIO as GPIO  
+import time     
+         
+LED = 12
+BUTTON = 19
+
+GPIO.setwarnings(False) 
+GPIO.setmode(GPIO.BOARD) #12
+GPIO.setup(LED,GPIO.OUT)  
+GPIO.setup(BUTTON,GPIO.IN) 
+
+mode_auto = 0
+last_button_statement = 0
+
+try:
+    while True:     
+
+        if GPIO.input(BUTTON) == 1 and last_button_statement != 1:
+            if mode_auto == 1:
+                mode_auto = 0
+                print("Led eteinte")
+                print("Appuyer sur le bouton pour relancer")
+            else:
+                mode_auto = 1
+                print("Led clignote")
+                print("Appuyer sur le bouton pour stopper")
+            last_button_statement = 1
+        elif GPIO.input(BUTTON) == 0 :
+            last_button_statement = 0
+
+        if mode_auto == 1 :
+            GPIO.output(LED,1)   
+            time.sleep(1)               
+            GPIO.output(LED,0)    
+            time.sleep(1)      
+         
+except KeyboardInterrupt:
+        GPIO.output(LED, 0)      
+        GPIO.cleanup()                  
+        print("\nEnd of program\n")
+

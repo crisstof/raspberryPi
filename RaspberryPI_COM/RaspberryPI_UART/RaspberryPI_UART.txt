@@ -1,0 +1,333 @@
+	*****************************************************************
+	* UART Universal Asynchronous Transmitter			*
+	* USART Universal Synchronous/Asynchronous Receiver Transmitter	*
+	* DUART Dual Universal Asynchronous Transmitter			*
+	*****************************************************************
+
+raspi-config> Interface option> P6 Serial-port
+A partir du Pi3 nous avons un vrai UART et un mini UART.
+Le Raspberry Pi3 (BCM3837) donne un UART1 (mini) et un UART0 (vrai) qui 
+donne accès au bluetooth (carte BCM43438 (wifi+bluetooth).
+
+Donc faire un choix avec l'option:
+ Nous avons besoin du bluetooth? (non donc on peut récupérer l’UART0):
+---------------------------------------------------------------------- 
+Option1: Utiliser l’UART0 en perdant le bluetooth, il faut permuter 
+les e/s des deux uart. 
+Pour cela ajouter dans: 
+/boot/config.txt : dtoverlay = pi3-disable-bt 
+puis supprimer :
+ console=serial0n 115200 dans cmdline.txt.
+
+Pour Pi4 : dtoverlay=disable-bt
+----------------------------------------------------------------------
+Option2: Faire fonctionner l’interface série et le bluetooth correctement
+mais la vitesse d’horloge du processeur sera fixé (vitesse faible [250MHZ] 
+ou à une vitesse élevée [500MHz ?]. 
+Ajoutez enable_uart = 1 à /boot/config.txt. 
+Ceci affecte les performances du processeur car ça contrôle la vitesse du cache L2
+et on note aussi une réduction de la qualité audio analogique et si on choisit la 
+vitesse élevé, il faut un ventilateur et radiateur et garder l’audio ajoutez 
+force_turbo = 1 à boot/config.txt, puis définissez une valeur fixe (faible) 
+en ajoutant toujours à boot/config.txt : core_freq = 250.
+Cela affectera les performances du processeur core_freq = 250 
+mais plutôt la ligne force_turbo = 1 mais cela nécessite d’utiliser un ventilateur 
+et un radiateur.
+
+Option3 : avoir une interface série pourrie sur le gpio (vitesse variable) mais 
+avec le bluetooth (Ne rien faire paramètre pas défaut).
+
+
+Option4 : Faire fonctionner correctement l’interface UART avec un bluetooth qui 
+fonctionne lentement. Permutez les uart : ajouter:
+dtoverlay = pi3-miniature-bt au fichier /boot/config.txt
+------------------------------------------------------------------------
+On a choisit l’opion1 :
+Pour le moment ls -l  /dev
+On a serial1 -> ttyAMA0
+Après manip :
+Serial0->ttyAMA0
+Serial1->ttyS0
+------------------------------------------------------------------------
+TESTER l'UART
+Relier la pin8 GPIO14 TX et pin10 GPIO15 RX avec une résistance entre de 600 Ω environ.
+
+********************loopback.py**********************************
+TEST UART raspberry
+  en mode loopback relier la pin TX à RX   
+*****************************************************************
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+import serial
+test_string = "Je teste le port série 1 2 3 4 5"
+port_list = ["/dev/ttyAMA0", "/dev/ttyAMA0", "/dev/ttyS0", "/dev/ttyS0",]
+for port in port_list:
+  try:
+    serialPort = serial.Serial(port, 9600, timeout = 2)
+    print "Port Série ", port, " ouvert pour le test :"
+    bytes_sent = serialPort.write(test_string)
+    print "Envoyé ", bytes_sent, " octets"
+    loopback = serialPort.read(bytes_sent)
+    if loopback == test_string:
+      print "Reçu ", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n"
+    else:
+      print "Reçu des données incorrectes : ", loopback, " sur le port série ", port, " bouclé \n"
+    serialPort.close()
+  except IOError:
+    print "Erreur sur ", port, "\n"
+*****************************************************************
+Le programme va envoyer les données en sortie sur le port série puis les récupérer sur l’entrée. 
+Le test est celui de /dev/ttyAMA0 
+***********************Lancer le programme***********************
+Python loopback.py
+Port série ouvert pour le test
+Envoyé 33 octets
+Reçu 33 octet identiques. 
+(Le port fonctionne bien)
+*****************************************************************
+PYTHON:
+Nous pouvons utiliser la bibliothèque PySerial (installer sur raspberry) compatible avec io de python.
+Sur github aide à l’accès aussi aux ports TTL, RS232, RS48, RFC2217 et divers gestionnaires d’URL.
+Sinon pour l’installer python3 -m pip install pyserial, Sinon installer pip : apt install python3-pip
+PySerial prend en charge ses attributs en lecture seule: name, cts, dsr, ri, cd.
+PySerial prend en charge ses attributs configurables: 
+serial.Serial() —méthode crée un objet série qui doit pointer vers un port série. 
+En même temps, c'est un constructeur et prend en charge la configuration des paramètres suivants:
+1. port – Nom de l'appareil ou aucun.
+2. baudrate –débit en bauds en bits par seconde. (Les valeurs standard supérieures à 115200 ne sont pas prises en compte sur Raspberry Pi)
+3. bytesize –nombre de bits de données. (FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS)
+4. parité –contrôle de parité. (PARITY_NONE, PARITY_EVEN, PARITY_ODD PARITY_MARK, PARITY_SPACE)
+5. stopbits –nombre de bits d'arrêt. (STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO)
+6. timeout –définit la valeur du délai de lecture.
+7. xonxoff –active le contrôle de flux logiciel.
+8. rtscts –active le contrôle de flux matériel (lignes modem RTS/CTS).
+9. dsrdtr –active le contrôle de flux matériel (lignes de modem DSR/DTR).
+10. write_timeout –définit une valeur de délai d'attente d'écriture.
+11. inner_byte_timeout –définit le délai d'attente entre les caractères. (désactivé par défaut)
+******METHODES*******
+Lorsqu'un objet série est créé avec un nom de port donné, le port est immédiatement ouvert. 
+Si le port est défini sur Aucun, il doit être ouvert à l'aide d'un appel successif à la méthode open().
+serial.open() —ouvre un port. (Si les lignes RTS et DTR d'un modem sont utilisées, l'état de rts et dtr peut être appliqué en utilisant cette méthode)
+serial.close() —ferme immédiatement un port. 
+serial.__del__() —ferme le port et détruit l'objet série. 
+serial.read() —lit les octets de taille à partir du port série. 
+		Si un délai d'attente est appliqué, il peut renvoyer moins de caractères que demandé. 
+		Sans timeout, il bloque l'exécution d'un programme jusqu'à ce que le nombre d'octets demandé soit lu. 
+		Dans la version 2.5 et supérieure, la méthode renvoie les octets lorsqu'ils sont disponibles ; sinon, il renverra la chaîne complète.  
+serial.read_until(expected=LF, size=None) —lit les données série jusqu'à ce qu'une séquence attendue (telle que le saut de ligne '\n') soit trouvée, 
+					   que la taille soit dépassée ou que le délai soit dépassé. 
+serial.write() —écrit des données d'octets sur le port série (et les données doivent être du type octets).
+		Cela signifie que les chaînes Unicode doivent être encodées à l'aide de la méthode encode() de la bibliothèque str. 
+		Dans la version 2.5 et au-dessus, il écrira les octets ou le tableau d'octets lorsqu'ils seront disponibles. Sinon, il écrit le type str. 
+serial.readline(size) —méthode a été fournie via io.IOBase.readline(). Il lit et renvoie une ligne du port série. 
+			Si une taille de paramètre est spécifiée, ces octets de taille sont lus à partir d'une ligne. 
+serial.readlines(hint=-1) —méthode a été fournie via io.IOBase.readlines(). Cette méthode lit et renvoie une liste de lignes du port série. 
+			   Le paramètre hint peut être spécifié pour contrôler le nombre de lignes lues.
+serial.writelines(lines) —méthode a été fournie via io.IOBase.writelines(). Il écrit une liste de lignes sur le port série. 
+			  Cependant, chaque ligne doit avoir un séparateur de ligne à la fin (comme le caractère de nouvelle ligne '\n'). 
+serial.flush() —méthode videra les objets de type fichier. Cela fait également attendre le port jusqu'à ce que toutes les données soient écrites. 
+serial.in_waiting() —méthode renvoie le nombre d'octets dans le tampon reçu. 
+serial.out_waiting() —méthode renvoie le nombre d'octets dans le tampon de sortie. 
+serial.reset_input_buffer() —méthode videra le tampon d'entrée, en supprimant tout son contenu. Elle a remplacé la méthode flushinput() dans les versions antérieures à 3.0.  
+serial.reset_output_buffer() —méthode efface le tampon de sortie, annule la sortie et supprime tout son contenu. Pour certains adaptateurs série USB, cela peut uniquement 
+			     vider la mémoire tampon du système d'exploitation - et non toutes les données pouvant être présentes dans le port USB. 
+			     Elle a remplacé la méthode flushoutput() dans les versions antérieures à 3.0.  
+serial.send_break(duration=0.25) —méthode envoie une condition BREAK. Si la durée est spécifiée (en secondes), le port revient à un état inactif après cette période. 
+				  Il n'est possible d'appliquer une condition d'interruption que lorsque les lignes du modem de contrôle de flux matériel sont utilisées. 
+serial.get_settings() —méthode renvoie un dictionnaire  avec les paramètres du port. Les paramètres peuvent être stockés dans une variable et restaurés ultérieurement à 
+		       l'aide de la méthode apply_settings(). Elle a remplacé la méthode getSettingsDict() dans les versions antérieures à 3.0.  
+serial.apply_settings(d) —méthode applique un dictionnaire qui a été créé par get_settings(). Lorsqu'une clé est manquante et que les modifications sont appliquées, 
+			  cela signifie que le paramètre reste inchangé. Elle a remplacé la méthode applySettingsDict() dans les versions antérieures à 3.0.  
+
+*****************************************************************
+Depuis Python3 les données sont encodées 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*************************************************DISCUSSIONS********************************************************************
+
+Programmer avec l’uart pour directement echo "Hello" > /dev/ttyS0
+
+Programme en C avec la librairie WiringPI
+*********************************************************************************************
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+
+#include <wiringPi.h>
+#include <wiringSerial.h>
+
+int main ()
+{
+  int serial_port ;
+  char dat;
+  if ((serial_port = serialOpen ("/dev/ttyS0", 9600)) < 0) /* open serial port */
+  {
+    fprintf (stderr, "Unable to open serial device: %s\n", strerror (errno)) ;
+    return 1 ;
+  }
+
+  if (wiringPiSetup () == -1)  				  /*initializes wiringPi setup */
+  {
+    fprintf (stdout, "Unable to start wiringPi: %s\n", strerror (errno)) ;
+    return 1 ;
+  }
+
+  while(1){
+	 if(serialDataAvail (serial_port) )
+	 { 
+	   dat = serialGetchar (serial_port);	          /*receive character serially*/		
+           printf ("%c", dat) ;
+	   fflush (stdout) ;
+	   serialPutchar(serial_port, dat);		 /* transmit character serially on port */
+         }
+  }
+-------------------------------------------------------------------------------------------------
+Programme en Python avec la librairie PISerial
+*************************************************************************************************
+Script 1
+import time
+from time import sleep
+import serial
+ser = serial.Serial ("/dev/ttyS0", baudrate = 9600, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=1)
+while 1 :
+    rx_data =ser.readline()
+    print(rx_data)
+    ser.write(rx_data)
+
+
+Script 2
+import time
+from time import sleep
+import serial
+ser = serial.Serial ("/dev/ttyS0", baudrate = 9600, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=1)
+while 1 :
+    rx_data =ser.read()
+    sleep(0.03)
+    data_left = ser.inWaiting()
+    rx_data += ser.read(data_left)
+    print(rx_data)
+    ser.write(rx_data)
+
+Lire les données série sur son port matériel série
+	•Imprimer ces données sur la console
+	•Renvoyez les mêmes données à l'ordinateur de bureau
+
+Les données envoyées sont transmises sous forme de bloc de données de 8 bits via le protocole UART à 
+un débit en bauds de 9600 bps sans parité, un bit d'arrêt et un délai d'attente d'une seconde. 
+Cependant, les deux scripts utilisent des méthodes différentes de la bibliothèque PySerial pour exécuter ces mêmes fonctions. 
+Script1
+commence par importer l'heure, le sommeil et la bibliothèque série. 
+Un objet série est créé à l'aide de la méthode serial.Serial() avec le port spécifié sur /dev/ttyS0.
+Dans une boucle while infinie, les données série sur le port TTL sont lues à l'aide de la méthode readline(). 
+Les données lues sont ensuite imprimées sur la console à l'aide de la méthode print(). 
+La même chose est ensuite écrite via le port série sur l'ordinateur de bureau en utilisant la méthode write().
+Script2
+Similaire, il utilise la méthode read() pour lire les données du port série et attend toutes les données restantes à l'aide de la méthode inWaiting(). 
+Ensuite, il lit à nouveau les données de gauche en utilisant la méthode read().
+Le deuxième script ne diffère que par la manière dont il lit les données du port série de RPi.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import wiringpi
+wiringpi.wiringPiSetup()
+serial = wiringpi.serialOpen('/dev/ttyAMA0',9600)
+wiringpi.serialPuts(serial,'hello world!')
+
+
+
+
+
+
+
+
+
+
+*****************************************************************
+TEST UART raspberry
+  en mode loopback relier la pin TX à RX 
+  du raspberry avec si on veut une resistance environ 600 ohm
+*****************************************************************
+loopBack.py
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Test du port série
+import serial
+test_string = "Je teste le port série 1 2 3 4 5"
+port_list = ["/dev/ttyAMA0", "/dev/ttyAMA0", "/dev/ttyS0", "/dev/ttyS0",]
+for port in port_list:
+  try:
+    serialPort = serial.Serial(port, 9600, timeout = 2)
+    print "Port Série ", port, " ouvert pour le test :"
+    bytes_sent = serialPort.write(test_string)
+    print "Envoyé ", bytes_sent, " octets"
+    loopback = serialPort.read(bytes_sent)
+    if loopback == test_string:
+      print "Reçu ", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n"
+    else:
+      print "Reçu des données incorrectes : ", loopback, " sur le port série ", port, " bouclé \n"
+    serialPort.close()
+  except IOError:
+    print "Erreur sur ", port, "\n"
