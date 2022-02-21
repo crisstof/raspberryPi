@@ -10,9 +10,66 @@ au début des années 1980.
  
 Fonctionnement
 --------------
-GPIO23 pin16
+GPIO l'utilisation des broches 27 et 28 est interdite réservées à l'accès aux mémoires EEPROM des cartes HAT connectées
+sur le reaspberry PI
 
-raspberryPi:
+Attention pour les sorties gpio. elles ne délivrent au maximum 3.3v et 16mA par broche et le courant total pour 
+l'ensemble du GPIO ne peut dépasser 50mA.
+Si vous voulez piloter un ventilateur 5v il faudra faire un étage de transistor ou utiliser un level shifter.
+
+
+*************************************************************************************************************************
+ConfigurationPI>Interfaces>Remote GPIO
+avant de commencer nous devons faire quelques vérifications:
+sudo apt update sudo apt upgrade
+sudo apt install rpi.gpio
+ 
+**activer une sortie en ligne de commande**
+man gpio
+sortie
+gpio -g mode 12 out
+gpio -g write 12 1
+gpio -g write 12 0
+entrée
+gpio -g mode 12 in
+gpio -g read 12  1
+gpio -g read 12  0
+
+script bash
+pi@raspberrypi ~/gpio $ nano test.sh
+#!/bin/bash
+
+setup ()
+{
+ echo Setup
+ gpio -g mode 4 in
+}
+
+waitButton ()
+{
+ echo -n "Waiting for button ... "
+ while [ `gpio -g read 4` = 1 ]; do
+   sleep 0.1
+ done
+ echo "Got it"
+}
+
+setup
+while true; do
+ waitButton
+done
+
+pi@raspberrypi ~/gpio $ chmod 755 test.sh
+pi@raspberrypi ~/gpio $ ./test.sh
+Setup
+Waiting for button ... Got it
+Waiting for button ... Got it
+
+
+*************************************************************************************************************************
+PYTHON:
+
+raspberryPi: GPIO23 pin16
 ------------
 import RPi.GPIO as GPIO
 import time
