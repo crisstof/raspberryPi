@@ -1,0 +1,834 @@
+	*****************************************************************
+	* UART Universal Asynchronous Transmitter			*
+	* USART Universal Synchronous/Asynchronous Receiver Transmitter	*
+	* DUART Dual Universal Asynchronous Transmitter			*
+	*****************************************************************
+******************************************COMMUNICATIONS UART**********************************************************
+
+Liaisons:
+simplex    : Les données circulent dans un seul sens (Emetteur vers Recepteur).
+half-duplex: Les données circulent dans un sens ou dans l'autre (mais pas simultanément).
+full-duplex: Les données circulent de façon bidirectionnelle et simultanément cela veut
+             dire que la bande passante et divisée par deux.
+
+la liaisons synchrone l'émetteur et le récepteur partagent un même signal d'horloge qui 
+permet de déterminer précisement l'instant auquel le bit est transmis, l'avantage est
+la vitesse de transmission et d'assurer la transmission correcte, mais il faut aussi
+que ce signal d'horloge soit aussi présent dans le canal de comunication, il peut être
+désynchronisé par la distance, il faut mettre beacoup de science et de technologie pour 
+asservir l'horloge et il n'est par certain que les coûts que ça engendre soit compensés.
+
+la liaison asynchrone chacun utilise son horloge locale moyennant des fréquences qui sont
+proches sans qu'elle soit synchronisées de façon stricte, en générale on ajoute un bit
+de parité qui permet de prévenir une erreur de transmission.
+Principe: Un top départ est donné et les bits évoluent à l'émetteur au rythme de son horloge
+locale tant que les horloges sont suffisamment proches.
+elle est  réservée à des débits plus faibles et des trames relativement courtes.
+Les vitesse vont 
+de 110 bauds à 3 686 400 bauds
+(9600 bauds en gros 9600 bits par seconde
+assez rapide pour la transmission de quelques chaînes de caractères courtes semble instantatnée.
+assez lent pour du code Arduino de trouner sur une plateforme Arduino Uno qui n'est pas spécialement rapide.)
+
+
+
+
+Une trame UART est constituée des bits suivants :
+
+           start           parité stop
+---------       -----------       ----------- ...
+         |      |D0|D1|Dn.|       |   |
+         |      |  |  |   |       |   |
+          -------   ---- -------------------- ...
+
+  - la transmission est initiée par un bit de START à 0 qui sert à synchroniser l'envoi de la trame avec le récepteur.
+  - suivent les bits de données dont la tailles est comprise entre 5 et 9 bits qui sont envoyés du LSB (poids faible)
+     au MSB (poids fort).
+  - suit un bit de parité (pair ou impaire) pour le contrôle d'erreur, optionnel la liaison doit être initialisée 
+    toujours de manière cohérente des deux côtés pour l'exploiter ou pas. utile à haute vitesse ou la ligne de 
+    qualité médiocre
+  - suivent un ou deux bits de stop niveau 1 pour marquer la fin de la trame.
+
+La table ASCII standard, les caractères sont codés sur 8 bits.
+'a' ASCII codé b0110 0001  h0x61
+la trame commence par 0 ensuite a et à gauche nous avons notre bit de parité et un bit de stop.
+1 1 0110 0001 0
+le bit de parité 1 0110 0001 sur 9 bits 4 sont à 1 (nombre paire) si lors de la transmission un bit est corrompu
+avec du bruit électromagnétique et le récepteur reçoit  1 0110 1001 le récepteur peut se rendre compte que le 
+nombre total de bits est impair et constate l'erreur si émetteur et récepteur se sont mis d'accord au préalable 
+d'un bit de parité pair. (la probabilité que 2 bits soient corrompus est négligeable), il existe des code qui
+permet de corriger une erreur de transmission où chaque groupe possède son bit de parité.
+
+
+La réception de la trame par polling/interruption
+polling (scrutation): sa scrute en permanence l'état de la ligne (du bus), elle est blocante et ralentit 
+énormément l'échange et monopolise la cpu.
+
+Interruption: Evènement extérieur au programme permet d'utilisée pour traiter des périphériques à 
+vitesse max sans scruter l'état
+
+
+
+
+*****************************************UART RaspberryPi**********************************************************
+Test avec 2 raspberry_Pi3 model B
+ --------------------------------
+| RPI_1		| RPI2		|
+|hostname: pi	|hostname: pi	|
+|pwd: rpi1	|pwd: rpi2	|
+|192.168.8.141	|192.168.142	|
+|-------------------------------|
+
+_________________________________________________________________________________
+ip static en wifi:
+/etc/dhcpcd.conf
+interface wlan0
+static ip_address=192.168.8.141/24
+static routers=192.168.8.1
+static domain_name_servers=192.168.8.1 8.8.8.8
+
+raspi-config pour configurer vnc et gpio
+uname -a #version 
+cat /proc/cpuinfo | grep Model  #Pi3 Model B Rev1.2
+cat /etc/os-release  #bullseye
+_________________________________________________________________________________
+Accès vnc: 192.168.8.414:5900
+           pi / rpi1
+Attention si vous avez un définition de merde:
+sudo nano /boot/config.txt
+dans framebuffer pour une définition 1920*1080
+witdh:1920 height:1080  
+_________________________________________________________________________________
+Reconnaitre le port uart: (activer serial et desactiver serial console!!!) 
+Pour le moment ls -l  /dev
+Serial0->ttyS0
+Serial1->ttyAMA0
+
+On a serial1 -> ttyAMA0
+Après manip :
+Serial0->ttyAMA0
+Serial1->ttyS0
+_________________________________________________________________________________
+   port 6 --------------port 6
+   port 8 BCM14 TX--------------- port 10  BCM15 RX
+   port 10  BCM15 RX--------------- port 8 BCM14 TX
+
+_________________________________________________________________________________
+Installer plusieurs version de python ou Utiliser un environnement virtuel
+UART Universal Asynchronous Transmitter
+Depuis Python3 les données doivent être encodées pour l'envoyer sur le port série.
+car toutes les chaînes de caractères sont au format unicode c'est à dire que le jeu de 
+caractères est le même pour toutes les chaînes de caractères. donc on envoie des bytes (octets)
+et pas des chaîne des caractères directement donc sur la réception micro_controleur il faut une adaptation
+Sinon pour envoyer des string comme l'arduino on peut utiliser python2.7:
+il faut python2.7
+Problème depuis bullseye (raspbian11) on a plus python2
+---------------------------------------ZAP-------------------------------------------------------------------------- 
+whereis python2.7 
+which python2.7
+apt purge python2.7-minimal
+apt autoremove python2.7 #attention sa ruine et supprime package et dépendance qui ne sont plus nécessaire
+les fichiers python sont dans /lib/python../dist-packages (fichier pip) et fichier binaire /bin
+--------------------------------------------------------------------------------------------------------------------
+apt install python2  #télécharge python2.7 #
+Installer pyserial avec pip:
+python -m pip install pyserial
+ou (mais des erreur ça ne fonctionne pas nickel)
+wget https://bootstrap.pypa.io/pip/2.7/get-pip.py  #sinon apt install python3-pip mais plus disp pour 2.7
+python2.7 get-pip.py
+-------------------------------------ENVIRONNEMENT VIRTUAL PYTHON POUR TESTER PLUSIEURS VERSIONS--------------------
+apt update upgrade dist-upgrade
+dpkg -l | grep python3.9 #mais rien pour python2.7 et oui il n'est plus installé
+apt install python2 #installation de python2.7 le pip il a était installer avec python3.9
+pip2 list #command introuvable c'est pip pas comme les anciennes versions
+****Nous allons créer un environnement virtuel****
+venv utilisé que avec python3
+virtualvenv prend en charge les anciennes versions de python,  et doit être installé à l'aide de pip
+ python -m venv envtest # création de l'environnement  
+ source envtest/bin/activate #(venvtest) root@rpi2:
+ (venvtest) root@rpi2: script deactivate  #Quitter l'environnement
+Pour avoir un environnement virtuel python2.7 
+virtualenv --python=/usr/bin/python2.7 envtest2.7
+python -m pip install pyserial #quand on est dans le virtual
+
+commande pip
+pip --version
+pip install paquet
+pip upgrade -pip
+
+
+
+***************************************************************************************************************************************************************
+Test python en loopback
+test_string =  "hello"
+j'envoie un type byte bytes_sent = ser.write(b"test_string") 
+à la réception loopback = ser.read(bytes_sent)
+nous avons un type byte si on fait print(loopback) cela affiche => b'test_string'
+Si on supprime le b de la chaine elle se transforme en type str si on fait de nouveau print(loopback) cela affiche => hello 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+
+import serial
+
+test_string = "Je teste le port serie 1 2 3 4 5"
+characters = "b"
+port_list = ["/dev/ttyS0"]
+for port in port_list:
+  try:
+    serialPort = serial.Serial(port, 9600, timeout = 2)
+    print ("Port Serie ", port, " ouvert pour le test :")
+    bytes_sent = serialPort.write(b"test_string")
+    print ("Envoye ", bytes_sent, " octets")
+    loopback = serialPort.read(bytes_sent)
+    print(type(loopback))
+    print (loopback)
+    
+    for x in range(len(characters)):
+        loopback = test_string.replace(characters[x],"")
+    print(type(loopback))
+    print("conversion après: "+ loopback)
+
+    if loopback == test_string:
+      print ("R", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n")
+    else:
+      print ("Recu des donnes incorrectes : ", loopback, " sur le port serie ", port, " boucle \n")
+    serialPort.close()
+  except IOError:
+    print ("Erreur sur ", port, "\n")
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+***************************************************************************************************************************************************************
+
+***************************************************************************************************************************************************************
+Test python en loopback
+test_string =  "Je teste le port serie 1 2 3 4 5"
+avec la fonction encode j'envoie le type bytes donc b'Je teste le port serie 1 2 3 4 5'
+à la réception loopback = ser.read(bytes_sent)
+nous avons un type byte  et si on fait loopback = loopback.decode() on a la class de type str pas besoin de supprimer le b'....'. 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+
+import serial
+
+test_string = "Je teste le port serie 1 2 3 4 5"
+port_list = ["/dev/ttyS0"]
+for port in port_list:
+  try:
+    serialPort = serial.Serial(port, 9600, timeout = 2)
+    print ("Port Serie ", port, " ouvert pour le test :")
+    message = test_string.encode() #encode en byte 
+    bytes_sent = serialPort.write(message)
+    print ("Envoye ", bytes_sent, " octets")
+    loopback = serialPort.read(bytes_sent)
+    loopback = loopback.decode()
+    
+    if loopback == test_string:
+      print ("R", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n")
+    else:
+      print ("Recu des donnes incorrectes : ", loopback, " sur le port serie ", port, " boucle \n")
+    serialPort.close()
+  except IOError:
+    print ("Erreur sur ", port, "\n")
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+***************************************************************************************************************************************************************
+
+
+***************************************************************************************************************************************************************
+Test python en loopback
+test_string =  "Je teste le port serie 1 2 3 4 5"
+avec la fonction encode j'envoie le type bytes donc b'Je teste le port serie 1 2 3 4 5'
+à la réception loopback = ser.read(bytes_sent)
+nous avons un type byte  et si on fait loopback = loopback.decode() on a la class de type str pas besoin de supprimer le b'....'. 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+
+import serial
+
+test_string = "Je teste le port serie 1 2 3 4 5"
+port_list = ["/dev/ttyS0"]
+for port in port_list:
+  try:
+    serialPort = serial.Serial(port, 9600, timeout = 2)
+    print ("Port Serie ", port, " ouvert pour le test :")
+    message = test_string.encode() #encode("utf-8") si on veut l'afficher avant un é au lieu de \xc3\xa9 mais à la réception ça change rien on a le é
+    bytes_sent = serialPort.write(message)  #ou directement serialPort.write("test_string".encode()) //mais on envoie quand même un byte (plusieurs octet)
+    print ("Envoye ", bytes_sent, " octets")
+    loopback = serialPort.read(bytes_sent)
+    loopback = loopback.decode()
+    
+    if loopback == test_string:
+      print ("R", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n")
+    else:
+      print ("Recu des donnes incorrectes : ", loopback, " sur le port serie ", port, " boucle \n")
+    serialPort.close()
+  except IOError:
+    print ("Erreur sur ", port, "\n")
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+***************************************************************************************************************************************************************
+En définitif nous envoyons sur la ligne des octets, on ne peut envoyer des chaines de caractères.
+pour l'arduino il faut le récupérer octet par octet.
+
+***************************************************************************************************************************************************************
+Test python de raspberryPi_1   -------> raspberryPi-2
+j'envoie le message= "coucou" vers le rp2.
+ rx-------tx
+ tx-------rx
+gnd------gnd
+
+Il faut couplé les masses sinon nous avons une erreur : UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd0 in position 3: invalide start byte
+
+readline() lit jusqu'au fin de ligne mis directement et read(5) lit 5 octets sinon c'est octet par octet. 
+démarrer le recepteur avant et ensuite l'emetteur. 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+RPi_1 Emetteur
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+import serial
+message = "coucou"
+ser = serial.Serial("/dev/ttyS0" , baudrate=9600,  timeout=10.0)
+print("Port serie :  " + ser.name)
+ser.write(message.encode("utf-8"))
+
+ser.flush()
+chaine = ser.readline()
+chaine = chaine.decode()
+print("Chaine recue: " + chaine)
+ser.close()
+_______________________________________________________________________
+RPi_2 Recepteur
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+ser = serial.Serial("/dev/ttyS0", baudrate=9600, timeout=10.0)
+print("Port serie :  " + ser.name)
+chaine = ser.readline()
+chaine = chaine.decode()
+print(" Chaine recue : " + chaine)
+
+ser.flush()
+ser.write(b'<<< Pong\n")
+ser.close()
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+exemple de configuration série
+serial.Serial ("/dev/ttyS0", baudrate = 9600, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, 
+                                                                         bytesize=serial.EIGHTBITS, timeout=1)
+***************************************************************************************************************************************************************
+
+
+***************************************************************************************************************************************************************
+Test AVEC PYTHON 2.7 on peut envoyer un type _str_      de raspberryPi_1   -------> raspberryPi-2
+
+****Nous allons créer un environnement virtuel****
+venv utilisé que avec python3
+virtualvenv prend en charge les anciennes versions de python,  et doit être installé à l'aide de pip
+ python -m venv envtest # création de l'environnement  
+ source envtest/bin/activate #(venvtest) root@rpi2:
+ (venvtest) root@rpi2: script deactivate  #Quitter l'environnement
+Pour avoir un environnement virtuel python2.7 
+virtualenv --python=/usr/bin/python2.7 envtest2.7
+python -m pip install pyserial #quand on est dans le virtual
+script deactivate #sortir du virtual
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+RPi_1 Emetteur
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import serial
+message = "hello world"
+ser = serial.Serial("/dev/ttyS0" , baudrate=19200,  timeout=10.0)
+print("Port serie :  " + ser.name)
+print(type(message))
+print("voici le message envoyé: " + message)
+byte_sent = ser.write(message)
+print("envoyer :", byte_sent, " octets")
+ser.close()
+____________________________________________________________
+RPi_2 Recepteur
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Test du port série
+import serial
+ser = serial.Serial("/dev/ttyS0" , baudrate=19200,  timeout=10.0)
+print("Port serie :  " + ser.name)
+message = ser.readline()
+print(type(message))
+print("voici le message reçu: "+ message)
+print("recu octets : ", len(message))
+ser.close()
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+***************************************************************************************************************************************************************
+
+
+**********************************RASPBERRY ET LANGAGE C & C++ ************************************************************************************************
+
+
+
+Test avec le langage C sur raspberryPi avec la bibliothèque wiringPi
+Mais avant un petit test helloWorld pour savoir si tout fonctionne:
+Avec Geany: vous devez changez le compilateur passer en g++
+gcc main.c -o fic1 //compilateur pour le C
+g++ main.c -o fic1  //compilateur pour le C++
+-----------------------------------
+#include <iostream>
+using namespace std;
+int main(int argc, char **argv)
+{
+  cout<<"Hello World" << endl;
+	
+	return 0;
+}
+------------------------------------
+Pour l'accès au gpio il nous faut la bibliothèque WiringPi comme l'Arduino.
+Vérifiez si la library est installée:  gpio -v  et gpio readall
+Si une erreur vous devez l'installer:
+uname -a #numéro de version raspbian
+apt-get update && dist-upgrade  
+git clone git://git.drogon.net/wiringPi
+ou
+git clone --branch final_official_2.50 https://github.com/WiringPi/WiringPi.git ~/wiringpi
+compiler: cd ~/wiringPi
+          ./build
+
+gpio readall:
+_____________________________________________________________________________________________
+WiringPi utilise sa propre numérotation des pins GPIO.
+	BCM	WiringPi	Name	Physical	Name	WiringPi	BCM
+				3.3v	1      2	5v	
+	2	8		SDA.1	3      4	5v				
+	3	9		SCL.1	5      6	0v
+	4	7		1-Wire	7      8	TxD	15		14
+				0v	9     10	RxD	16		15
+	17	0		GPIO.0	11    12	GPIO.1	1		18
+	27	2		GPIO.2	13    14	0v	
+	22	3		GPIO.3	15    16	GPIO.4	4		23
+				3.3v	17    18	GPIO.5	5		24
+	10	12		MOSI	19    20	0v	
+	9	13		MISO	21    22	GPIO.6	6		25
+	11	14		SCLK	23    24	CE0	10		8
+				0v	25    26	CE1	11		7
+	0	30		SDA.0	27    28	SCL.0	31		1
+	5	21		GPIO.21	29    30	0v	
+	6	22		GPIO.22	31    32	GPIO.26	26		12
+	13	23		GPIO.23	33    34	0v	
+	19	24		GPIO.24	35    36	GPIO.27	27		16
+	26	25		GPIO.25	37    38	GPIO.28	28		20
+				0v	37    40	GPIO.29	29		21
+	BCM	WiringPi	Name	Physical	Name	WiringPi	BCM
+_____________________________________________________________________________________________
+Tester la librairie pour allumer une led
+rapide test pour valider le cablâge: 
+gpio -g mode 21 out
+gpio -g write 21 1
+
+Vous pouvez le faire avec la library wiringPi
+gpio write
+gpio -g write 21 1 //c'est la pin BCM 
+----------------------------------------------------------
+gpio -v  #savoir si elle est installée
+pour compiler il faut lié wiringPi à la compilation:
+g++ led.cpp -o led1 -lwripingPi
+-----------------------------------------------------------
+#include <iostream>
+#include <wiringPi.h>
+using namespace std;
+
+int ledPin = 29;  //Correspond à la pin 21
+
+void setup(){
+
+	pinMode(ledPin,OUTPUT);
+	cout<<"Hello World" << endl;
+}
+
+void loop(){
+	digitalWrite(ledPin,HIGH);
+	delay(100);
+	digitalWrite(ledPin,LOW);
+	delay(100);
+
+	cout<<"Blink the LED" << endl;
+}
+
+int main(void)//(int argc, char **argv)
+{
+	if(wiringPiSetup()<0){
+		cout<<"setup wiring pi failed"<<endl;
+		return 1;
+	}
+	setup();
+	while(1){
+		loop();
+	}
+	
+	return 0;
+}
+--------------------------------------------------------------------------------------
+Plus court et en langage C (il nous oblige l'appel de wiringPiSetup()
+#include <stdio.h>
+#include <time.h>
+#include <wiringPi.h>
+int ledPin = 29;  //Correspond à la pin 21
+int main(void)
+{
+	if(wiringPiSetup()<0){
+		printf("setup wiring pi failed");
+		return 1;
+	}
+	pinMode(ledPin,OUTPUT);
+	pinMode(ledPin,OUTPUT);
+	digitalWrite(ledPin,HIGH);
+	delay(1000);
+	digitalWrite(ledPin,LOW);
+	delay(1000);
+    
+	return 0;
+}
+--------------------------------------------------------------------------------------------
+******************************************COMMUNICATIONS UART C******************************************************
+Passons à 'UART' maintenant:
+ls -l /dev   	#serial ->ttyS0          miniuart
+  		#serial1 -> ttyAMA0      serial pour le bluetooth
+Pour de meilleurs performance nous pouvons échanger le serial du bluetooth
+nano /boot/config.txt
+ajouter à la fin du fichier:
+dtoverlay=pi3-miniuart-bt  //échange
+ou
+dtoverlay=pi3-disable-bt   //désactive
+RaspberryPi  -----------------> terminalPC
+echo "Hello" > /dev/ttyS0-----> affiche sur le pc
+--------------------------------------------------------------------------------------------
+Compilation du fichier avec wiringpi
+gcc -Wall -o exe1  fic.c  -lwiringPi
+
+--------------------------------------------------------------------------------------------
+#include <stdio.h>
+#include <string.h> //pour strcpy .. action sur des chaines
+#include <errno.h>
+
+#include <wiringPi.h>
+#include <wiringSerial.h>
+
+int main ()
+{ int i;
+  int fd ;
+  char ch[50];
+  char message[15] =  {'B', 'o', 'n', 'j', 'o', 'u', 'r'};
+
+  fd = serialOpen ("/dev/ttyS0", 9600);
+  wiringPiSetup ();
+  printf (" -------after wiringPiSetup----\n") ;
+  serialPuts(fd,message); //Sends the nul-terminated string to the serial device
+  delay(2000);            //serialPlus (cins int fd, const char *s) [const char *carac = "V";]
+           
+  //char c = serialGetchar(fd); //read char
+  //printf("%c \n", c); //affiche B
+  
+   printf("\n----%d----\n", serialDataAvail(fd)); //--------7--------
+   size_t size = sizeof(ch);
+   printf("\n bytes: %d\n", size); //bytes: 50
+   
+   size_t element = sizeof(ch) / sizeof(ch[0]);
+   printf("\n nombre elements : %d\n", element); //nombre elements: 50
+      
+   for(i=0; i <= 6 ; i++)
+     {         
+       ch[i] = serialGetchar(fd);
+       printf ("%c", ch[i]) ;
+      } //Bonjour
+  
+  printf ("%s", ch) ;    
+  printf (" \n-------end main----\n") ;
+  return 0 ;  
+
+}
+  //char *recpt_cstr1;
+  //recpt_cstr1 =  (char *) malloc(6+1);
+  // recpt_cstr1[n];
+//void *malloc(sizet_t taille) alloue un objet de la taille fournie en argument mais surtout utilisé pour allouer les tableau dynamique
+//alloue un bloc de mémoire dans le tas (heap) 
+https://zestedesavoir.com/tutoriels/755/le-langage-c-1/1043_aggregats-memoire-et-fichiers/4285_lallocation-dynamique/
+https://koor.fr/C/cstdlib/malloc.wp
+https://openclassrooms.com/fr/courses/19980-apprenez-a-programmer-en-c/16595-creez-des-variables-grace-a-lallocation-dynamique
+//*******ERREUR*****GESTION*****//
+
+  if ((serial_port = serialOpen ("/dev/ttyS0", 9600)) < 0)	/* open serial port */
+  {
+    fprintf (stderr, "Unable to open serial device: %s\n", strerror (errno)) ;
+    return 1 ;
+  }
+
+  if (wiringPiSetup () == -1)					/* initializes wiringPi setup */
+  {
+    fprintf (stdout, "Unable to start wiringPi: %s\n", strerror (errno)) ;
+    return 1 ;
+  }
+
+exemple de lecture/action
+https://www.electro-info.ovh/developper-en-C-Cpp-sur-raspberry-pi-a-distance-depuis-NetBeans
+----------------------------------------------------------------------------------------------------------------
+https://arduino103.blogspot.com/2013/10/decouvrez-wiringpi-une-librairie-c-pour.html
+
+LES METHODES:
+------------
+int serialOpen (char *device, int baud) ;
+This opens and initialises the serial device and sets the baud rate. It sets the port into “raw” mode 
+(character at a time and no translations), and sets the read timeout to 10 seconds. The return value is 
+the file descriptor or -1 for any error, in which case errno will be set as appropriate.
+Cela ouvre et initialise le périphérique série et définit le débit en bauds. Il définit le port en mode "brut"
+ (caractère à la fois et aucune traduction) et définit le délai de lecture à 10 secondes. 
+La valeur de retour est le descripteur de fichier ou -1 pour toute erreur, auquel cas errno sera défini comme approprié.
+
+void serialClose (int fd) ;
+Closes the device identified by the file descriptor given.
+
+void  serialPutchar (int fd, unsigned char c) ;
+Sends the single byte to the serial device identified by the given file descriptor.
+Envoie l'octet unique au périphérique série identifié par le descripteur de fichier donné.
+
+void  serialPuts (int fd, char *s) ;
+Sends the nul-terminated string to the serial device identified by the given file descriptor.
+Envoie la chaîne terminée par un caractère nul au périphérique série identifié par le descripteur de fichier donné.
+
+void  serialPrintf (int fd, char *message, …) ;
+Emulates the system printf function to the serial device.
+Émule la fonction système printf sur le périphérique série.
+
+int   serialDataAvail (int fd) ;
+Returns the number of characters available for reading, or -1 for any error condition, in which case errno will be set appropriately.
+Renvoie le nombre de caractères disponibles pour la lecture, ou -1 pour toute condition d'erreur, auquel cas errno sera défini de manière appropriée.
+
+int serialGetchar (int fd) ;
+Returns the next character available on the serial device. This call will block for up to 10 seconds if no data is available (when it will return -1)
+Renvoie le prochain caractère disponible sur le périphérique série. Cet appel bloquera jusqu'à 10 secondes si aucune donnée n'est disponible (quand il retournera -1)
+
+void serialFlush (int fd) ;
+This discards all data received, or waiting to be send down the given device.
+ela supprime toutes les données reçues ou en attente d'être envoyées vers le périphérique donné.
+
+Note: The file descriptor (fd) returned is a standard Linux file descriptor. You can use the standard read(), write(), etc. 
+system calls on this file descriptor as required. E.g. you may wish to write a larger block of binary data where the serialPutchar() 
+or serialPuts() function may not be the most appropriate function to use, in which case, you can use write() to send the data.
+Le descripteur de fichier (fd) renvoyé est un descripteur de fichier Linux standard. Vous pouvez utiliser les appels système 
+standard read(), write(), etc. sur ce descripteur de fichier si nécessaire. Par exemple. vous souhaiterez peut-être écrire un 
+plus grand bloc de données binaires où la fonction serialPutchar() ou serialPuts() peut ne pas être la fonction la plus appropriée 
+à utiliser, auquel cas vous pouvez utiliser write() pour envoyer les données.
+-------------------------------------------------------------------------------------------
+Advanced Serial Port Control https://projects.drogon.net/raspberry-pi/wiringpi/serial-library/
+The wiringSerial library is intended to provide simplified control – suitable for most applications, however if you need advanced control – e.g. parity control, modem control lines (via a USB adapter, there are none on the Pi’s on-board UART!) and so on, then you need to do some of this the “old fashioned” way.
+For example – To set the serial line into 7 bit mode plus even parity, you need to do this…
+In your program:
+#include <termios.h>
+and in a function:
+
+  struct termios options ;
+
+  tcgetattr (fd, &options) ;   // Read current options
+  options.c_cflag &= ~CSIZE ;  // Mask out size
+  options.c_cflag |= CS7 ;     // Or in 7-bits
+  options.c_cflag |= PARENB ;  // Enable Parity - even by default
+  tcsetattr (fd, &options) ;   // Set new options
+ The ‘fd’ variable above is the file descriptor that serialOpen() returns.
+
+Please see the man page for tcgetattr for all the options that you can set.
+
+man tcgetattr
+---------------------------------------------------------------------------------------------
+
+*********************************************************************************************************************************************************************************************************************************************************************
+voir pour le pi4 le BCM aurait changé
+git clone https://github.com/Milliways2/wPi.git
+https://github.com/Milliways2/wPi
+******************************************COMMUNICATIONS UART C++ (chaine de caractère type string)******************************************************
+#include <iostream>
+#include <string>
+#include <sstream> ////Lets you create strings using << for instance
+using namespace std;
+
+#include <wiringPi.h>
+#include <wiringSerial.h>
+int main ()
+{  
+  string message = "Bonjour";
+  const char* msg = message.c_str();
+  int fd ;
+
+     fd = serialOpen ("/dev/ttyS0", 9600);
+     wiringPiSetup ();
+    printf (" -------after wiringPiSetup----\n") ;
+    cout<<"La chaine est: "<<message<<endl;
+    
+    
+   
+    serialPuts(fd,msg); //Sends the nul-terminated string to the serial device
+    
+    delay(2000);
+    
+      char recpt = serialGetchar(fd);
+      //string rec = (string) recpt;
+      cout<<"La chaine est: "<<recpt<<endl;
+      
+            
+    printf ("\n-------end main----\n") ;
+    serialClose(fd);
+    return 0 ;
+    }
+------------------------------------------------------------------------------
+Après des tentatives une compilation presque:
+root@raspi1:/home/pi/uartcpp# g++ -Wall -o uartcpp uartcpp.cpp -lwiringPi
+/usr/bin/ld: /tmp/ccy4L2QF.o: in function `main':
+uartcpp.cpp:(.text+0x50): undefined reference to `serialOpen'
+/usr/bin/ld: uartcpp.cpp:(.text+0x5c): undefined reference to `wiringPiSetup'
+/usr/bin/ld: uartcpp.cpp:(.text+0xa0): undefined reference to `serialPuts'
+/usr/bin/ld: uartcpp.cpp:(.text+0xa8): undefined reference to `delay'
+/usr/bin/ld: uartcpp.cpp:(.text+0xb0): undefined reference to `serialGetchar'
+/usr/bin/ld: uartcpp.cpp:(.text+0xf8): undefined reference to `serialClose'
+collect2: error: ld returned 1 exit status
+On dirait que ce n'est pas compatible:
+Mais où est wiringPi.h si on veut le mettre à jour:
+les répertoires Linux sur raspberry ou autres:
+1. /bin   : contient des shells et des commandes (cp, mv, cat, ls) pour l'admin système
+2. /boot  : contient des informations de configurations système utilisées lors du démarrage de la machine.
+            /boot/overlays		/boot/System Volume Information
+3. /dev   : contient des fichiers nécéssaire au pilotage des périphériques (usb, clavier, souris, audio...).
+4. /etc   : il regroupe l'ensemble des fichiers de configuration avec certaines classées par application.
+5. /home  : contient les répertoires ou les utilisateurs peuvent placer leurs données personnelles.
+6. /lib   : contient les librairies utilisées par Linux pour fonctionner.
+7. /lost+found : utilise par linux comme espace de travail pour récupérer des données en cas de problème ou vérif (fsck~scandisk)
+8. /media : utiliser pour monter un système de fichier (clé usb, disque)
+9. /mnt   : il est vide, il est utilisé pour monter un système de fichiers.
+10. /opt  : contient des logiciel optionnels (appli installées hors gestionnaire de paquets)
+	    (minecraft, pigpio, sonic-pi, vc, wolfram)
+11. /proc : contient des informations sur les processus en cours d'exécution et sur la mémoire vive disponible.
+12. /root : répertoire réservé à l'utilisateur root il peut ranger ses fihiers de travail ailleurs que home.
+13. /run  : sert à ranger les données d'exécution utilisées par différents programmes lors du démarrage de linux.
+14. /sbin : (system binaire) contient divers exécutable destinés à l'admin système (partition, formatage, config des interfaces réseau...)
+15. /srv  : a vocation de contenir les fichiers qui sont destinés à être envoyés vers un serveur.
+16. /sys  : contient des informations volatiles sur les processus en cours d'exécution et sur la mémoire vive disponible (disparait éteint)
+17. /tmp  : contient les fichiers temporaires, données volatiles qui ne nous seront plus nécessaire après un redémarrage de la machine.
+18. /usr  : contient les logiciels installés
+19. /var  : contient des fichiers "variables" (fichiers produit par des services, journaux, fil d'attente d'impression...)
+---------------------------------------------------------------------------------------------------------------------------------------------
+mise à jour le wiringpi
+/tmp/ 
+wget https://project-downloads.drogon.net/wiringpi-latest.deb
+dpkg -i wiringpi-latest.deb
+----------------------------------------------------------------------------
+#include <iostream>
+#include <string>
+#include <cstring>
+#include <sstream> ////Lets you create strings using << for instance
+using namespace std;
+
+#include <wiringPi.h>
+#include <wiringSerial.h>
+int main ()
+{  
+  string str1 = "Bonjour";
+  const char* cstr1 = str1.c_str();//ne peut plus modifier cont char *
+  int fd ;
+  
+  
+    fd = serialOpen("/dev/ttyS0", 9600);
+     wiringPiSetup ();
+    printf (" -------after wiringPiSetup----\n") ;
+    serialPuts(fd,cstr1); //serialPuts veut que const * char pas de string
+    delay(200);
+    char c = serialGetchar(fd);
+    cout<<"La chaine est: "<<c<<endl;
+    /*  
+    cout<<"La chaine est: "<<serialDataAvail(fd) <<endl;
+    while(serialDataAvail(fd) >= 1)
+    {
+      recpt_cstr1 = serialGetchar(fd);
+      //string rec = (string) recpt;
+      cout<<"La chaine est: "<<recpt_cstr1<<endl;
+    }//affiche Bonjour 
+    */
+    printf ("\n-------end main----\n") ;
+    serialClose(fd);
+    return 0 ;
+    }
+----------------------------------------------------------------------------------------
+*****************************************************************************************
+EN DEFINITIVE IL FAUDRAIT FAIRE SA PROPRE BIBLIOTHEQUE C++ SERIAL.			*
+*****************************************************************************************
+
+
+
+
+
+
+quelques liens---------------------------------------------------------------------------------------------------------------------------
+https://www.developpez.net/forums/d731736/c-cpp/c/liaison-serie-langage-c/
+
+https://openclassrooms.com/fr/courses/5224916-developpez-un-robot-mobile-connecte-par-bluetooth/5500616-utilisez-une-liaison-serie-uart
+
+https://www.electronique-mixte.fr/wp-content/uploads/2018/07/Formation-Interface-communication-48.pdf
+
+https://roboticsbackend.com/introduction-to-wiringpi-for-raspberry-pi/
+
+
+https://stm32python.gitlab.io/fr/ #micropython avec le stm32
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import wiringpi
+wiringpi.wiringPiSetup()
+serial = wiringpi.serialOpen('/dev/ttyAMA0',9600)
+wiringpi.serialPuts(serial,'hello world!')
+
+
+
+
+
+
+
+
+
+
+
+
+
++++++++++++++++++++++++++++++++++++++++++++++
+

@@ -43,5 +43,6 @@ HDMI	High-Definition Multimedia Interface
 
 [1]: https://www.raspberrypi.com/
 [Pi Imager]: https://www.raspberrypi.com/software/
-
+[lien1_amateur]: http://emery.claude.free.fr/index.html
+[example_markdown]:https://github.com/hendrychjan/valt-rpi  
 

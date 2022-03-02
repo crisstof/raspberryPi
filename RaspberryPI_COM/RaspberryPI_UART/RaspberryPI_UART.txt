@@ -65,14 +65,14 @@ port_list = ["/dev/ttyAMA0", "/dev/ttyAMA0", "/dev/ttyS0", "/dev/ttyS0",]
 for port in port_list:
   try:
     serialPort = serial.Serial(port, 9600, timeout = 2)
-    print "Port Série ", port, " ouvert pour le test :"
+    print ("Port Série ", port, " ouvert pour le test :")
     bytes_sent = serialPort.write(test_string)
-    print "Envoyé ", bytes_sent, " octets"
+    print ("Envoyé ", bytes_sent, " octets")
     loopback = serialPort.read(bytes_sent)
     if loopback == test_string:
-      print "Reçu ", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n"
+      print ("Reçu ", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n")
     else:
-      print "Reçu des données incorrectes : ", loopback, " sur le port série ", port, " bouclé \n"
+      print ("Reçu des données incorrectes : ", loopback, " sur le port série ", port, " bouclé \n")
     serialPort.close()
   except IOError:
     print "Erreur sur ", port, "\n"
@@ -142,37 +142,6 @@ serial.apply_settings(d) —méthode applique un dictionnaire qui a été créé
 
 *****************************************************************
 Depuis Python3 les données sont encodées 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 *************************************************DISCUSSIONS********************************************************************
@@ -257,77 +226,3 @@ Script2
 Similaire, il utilise la méthode read() pour lire les données du port série et attend toutes les données restantes à l'aide de la méthode inWaiting(). 
 Ensuite, il lit à nouveau les données de gauche en utilisant la méthode read().
 Le deuxième script ne diffère que par la manière dont il lit les données du port série de RPi.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import wiringpi
-wiringpi.wiringPiSetup()
-serial = wiringpi.serialOpen('/dev/ttyAMA0',9600)
-wiringpi.serialPuts(serial,'hello world!')
-
-
-
-
-
-
-
-
-
-
-*****************************************************************
-TEST UART raspberry
-  en mode loopback relier la pin TX à RX 
-  du raspberry avec si on veut une resistance environ 600 ohm
-*****************************************************************
-loopBack.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-#
-# Test du port série
-import serial
-test_string = "Je teste le port série 1 2 3 4 5"
-port_list = ["/dev/ttyAMA0", "/dev/ttyAMA0", "/dev/ttyS0", "/dev/ttyS0",]
-for port in port_list:
-  try:
-    serialPort = serial.Serial(port, 9600, timeout = 2)
-    print "Port Série ", port, " ouvert pour le test :"
-    bytes_sent = serialPort.write(test_string)
-    print "Envoyé ", bytes_sent, " octets"
-    loopback = serialPort.read(bytes_sent)
-    if loopback == test_string:
-      print "Reçu ", len(loopback), "octets identiques. Le port", port, "fonctionne bien ! \n"
-    else:
-      print "Reçu des données incorrectes : ", loopback, " sur le port série ", port, " bouclé \n"
-    serialPort.close()
-  except IOError:
-    print "Erreur sur ", port, "\n"
