@@ -1,0 +1,81 @@
+*************CAMERA PI****************
+raspi-config/option/camera (enable)
+vérifier si la camera est detectée: vcgencmd get_camera #dectected=1
+
+---Prendre une photo en ligne de commande-----
+mkdir camera
+cd camera
+raspistill -o image.jpg -q 100
+**options: raspistill --help
+-o :output filename (stocke les photos)
+-q :qualité image de 0 à 100
+-w et -h :width et height définir les dimensions manuellement.
+-t :timeout temps mis avant de prendre la photo (retardateur)
+-vf et -hf : vertical flip et horizontal flip (retourne la photo)
+
+---Avec Python---------------------------------------------------------
+sudo apt-get install python3-picamera  #librairie picamera
+script:
+import picamera
+import datetime
+
+camera = picamera.PiCamera()
+camera.hflip = True
+camera.vflip = True
+camera.resolution = (2592,1944)
+  
+camera.capture(str(datetime.datetime.now())+'.jpg')
+
+-----------------------------------------------------------------------
+camera.resolution = (2592, 1944) si vous disposez d'une camera 5 MP,
+camera.resolution = (3280, 2464) si vous disposez d'une camera 8 MP.
+sinon par défaut: 1920*1080
+-----------------------------------------------------------------------
+script avec photophyles dotn
+camera.sharpness = 0
+camera.contrast = 0
+camera.brightness = 50
+camera.saturation = 0
+camera.ISO = 0
+camera.video_stabilization = False
+camera.exposure_compensation = 0
+camera.exposure_mode = 'auto'
+camera.meter_mode = 'average'
+camera.awb_mode = 'auto'
+camera.image_effect = 'none'
+camera.color_effects = None
+camera.rotation = 0
+camera.crop = (0.0, 0.0, 1.0, 1.0)
+-----------------------------------------------------------------------
+
+---Prendre une video en ligne de commande-----
+raspivid -o video.h264 -t 10000  #video de 10sc (10 000ms) au format h264.
+pour lire il faudra installer les lecteurs 
+apt-get -y gpac #logiciel
+MP4Box -add video.h264 video.mp4 #convertir la video
+---Avec Python---------------------------------------------------------
+avec picamera
+----------------------------------------
+script
+import os
+import picamera
+import time
+
+camera = picamera.PiCamera()
+
+#Retourner image : Enlever les deux hashtag suivants
+#camera.hflip = True
+#camera.vflip = True
+
+dureeVideo = 5
+nomVideo = time.strftime("%d.%m.%Y-%Hh%Mm%Ss")
+
+camera.start_recording(nomVideo+".h264")
+print("REC...")
+time.sleep(dureeVideo)
+camera.stop_recording()
+
+commande = "MP4Box -add "+nomVideo+".h264 " + nomVideo+".mp4"
+os.system(commande)
+-------------------------------------------------------------------------
+
